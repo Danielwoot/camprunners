@@ -16,6 +16,8 @@ export interface CampgroundSourceDetails {
   maxVehicleLength?: number | null;
   checkIn?: string | null;
   checkOut?: string | null;
+  photos?: string[];
+  image?: string | null;
 }
 
 /**

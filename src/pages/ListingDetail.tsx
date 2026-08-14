@@ -59,7 +59,12 @@ export default function ListingDetail() {
       if (isMounted) {
         setNwsAlert(alert);
         if (weather) setLiveWeather(weather);
-        if (details) setSourceDetails(details);
+        if (details) {
+          setSourceDetails(details);
+          if (details.image || (details.photos && details.photos.length > 0)) {
+            setImgSrc(details.photos?.[0] || details.image || campsite.image);
+          }
+        }
         setIsLoadingTelemetry(false);
       }
     }).catch(() => {
@@ -86,12 +91,13 @@ export default function ListingDetail() {
   const currentElevation = liveWeather?.elevation || campsite.elevation;
   const activeForecast = liveWeather?.forecast && liveWeather.forecast.length > 0 ? liveWeather.forecast : campsite.forecast;
 
-  // Authentic Source Amenities
+  // Authentic Source Amenities & Photos
   const displayAmenities = sourceDetails?.amenities && sourceDetails.amenities.length > 0
     ? sourceDetails.amenities
     : campsite.amenities;
 
   const displayDescription = sourceDetails?.description || campsite.summary;
+  const galleryPhotos = sourceDetails?.photos && sourceDetails.photos.length > 0 ? sourceDetails.photos : [imgSrc];
 
   return (
     <main className="relative z-10 pt-24 pb-20 px-4 md:px-8 max-w-7xl mx-auto space-y-8">
@@ -111,7 +117,7 @@ export default function ListingDetail() {
         {/* Left Column: Image & Telemetry */}
         <div className="lg:col-span-2 space-y-8">
           {/* Visual Container */}
-          <div className="bg-[#0c1212] border-2 border-[#00f0ff]/40 p-2 relative group chamfered-card shadow-2xl">
+          <div className="bg-[#0c1212] border-2 border-[#00f0ff]/40 p-2 relative group chamfered-card shadow-2xl space-y-2">
             <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-[#a3e635] z-20"></div>
             <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-[#a3e635] z-20"></div>
             <div className="aspect-video bg-gray-900 relative overflow-hidden flex items-center justify-center">
@@ -120,7 +126,7 @@ export default function ListingDetail() {
                 src={imgSrc}
                 alt={campsite.name}
                 onError={() => setImgSrc('https://images.unsplash.com/photo-1510312305653-8ed496efae75?q=80&w=1200&auto=format&fit=crop')}
-                className="w-full h-full object-cover grayscale opacity-80 group-hover:grayscale-0 group-hover:scale-102 transition-all duration-500"
+                className="w-full h-full object-cover transition-all duration-500"
               />
               {/* GPS-Derived Elevation Badge */}
               <div className="absolute top-4 left-4 z-20 bg-[#050505]/95 border border-[#00f0ff]/70 px-3.5 py-1.5 font-mono text-xs text-[#a3e635] font-bold shadow-lg flex items-center gap-2">
@@ -128,6 +134,25 @@ export default function ListingDetail() {
                 <span>ELEVATION: {currentElevation}</span>
               </div>
             </div>
+
+            {/* Authentic Photography Filmstrip / Gallery Selector */}
+            {galleryPhotos.length > 1 && (
+              <div className="pt-2">
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                  {galleryPhotos.slice(0, 12).map((photoUrl, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setImgSrc(photoUrl)}
+                      className={`shrink-0 w-20 h-14 border-2 ${
+                        imgSrc === photoUrl ? 'border-[#00f0ff] scale-105 shadow-[0_0_10px_rgba(0,240,255,0.5)]' : 'border-gray-800 opacity-60 hover:opacity-100'
+                      } overflow-hidden transition-all duration-200`}
+                    >
+                      <img src={photoUrl} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* OFFICIAL NATIONAL WEATHER SERVICE ACTIVE HAZARD BANNER */}

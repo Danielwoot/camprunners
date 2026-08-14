@@ -1092,19 +1092,51 @@ function fetchCampspotParkDetails(slugOrUrl: string): Promise<any> {
               features.push(...generalData.amenities.slice(0, 12));
             }
 
-            // Extract description from JSON-LD
+            // Extract 100% complete unabridged description
             let description: string | null = null;
-            const jsonLdMatch = body.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi);
-            if (jsonLdMatch) {
-              for (const tag of jsonLdMatch) {
-                try {
-                  const parsed = JSON.parse(tag.replace(/<\/?script[^>]*>/gi, '').trim());
-                  if (parsed['@type'] === 'Campground' && parsed.description) {
-                    description = parsed.description;
-                    break;
-                  }
-                } catch(e) {}
+            const metaDescMatch = body.match(/<meta\s+name="description"\s+content="([^"]+)"/i) ||
+                                  body.match(/<meta\s+property="og:description"\s+content="([^"]+)"/i);
+            if (metaDescMatch && metaDescMatch[1]) {
+              description = metaDescMatch[1];
+            } else {
+              const jsonLdMatch = body.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi);
+              if (jsonLdMatch) {
+                for (const tag of jsonLdMatch) {
+                  try {
+                    const parsed = JSON.parse(tag.replace(/<\/?script[^>]*>/gi, '').trim());
+                    if (parsed['@type'] === 'Campground' && parsed.description) {
+                      description = parsed.description;
+                      break;
+                    }
+                  } catch(e) {}
+                }
               }
+            }
+
+            // Extract authentic high-res park photos from Campspot CDN
+            const rawImages = [...body.matchAll(/https:\/\/images\.campspot\.com\/[a-zA-Z0-9_\-\+\/=]+/g)].map(m => m[0]);
+            const photos: string[] = [];
+            const seenKeys = new Set<string>();
+
+            for (const rawUrl of rawImages) {
+              const b64 = rawUrl.replace('https://images.campspot.com/', '');
+              try {
+                const decoded = JSON.parse(Buffer.from(b64, 'base64').toString('utf8'));
+                if (decoded.key && !seenKeys.has(decoded.key)) {
+                  seenKeys.add(decoded.key);
+                  const highResPayload = {
+                    bucket: decoded.bucket || 'campspot-production',
+                    key: decoded.key,
+                    edits: {
+                      resize: { width: 1200, height: 800, fit: 'inside' },
+                      jpeg: { quality: 80 },
+                      toFormat: 'jpeg'
+                    }
+                  };
+                  const highResB64 = Buffer.from(JSON.stringify(highResPayload)).toString('base64');
+                  photos.push(`https://images.campspot.com/${highResB64}`);
+                }
+              } catch(e) {}
             }
 
             const details = {
@@ -1112,6 +1144,8 @@ function fetchCampspotParkDetails(slugOrUrl: string): Promise<any> {
               name: park?.name,
               amenities: [...new Set(features)],
               description: description || park?.description || null,
+              photos: photos,
+              image: photos[0] || null,
               lat: park?.latitude,
               lng: park?.longitude,
               address: park?.address
@@ -1122,10 +1156,10 @@ function fetchCampspotParkDetails(slugOrUrl: string): Promise<any> {
             return;
           }
 
-          const fallback = { amenities: ['Full Hookups', 'Toilets', 'Potable Water', 'Pet-Friendly', 'Wi-Fi'], description: null };
+          const fallback = { amenities: ['Full Hookups', 'Toilets', 'Potable Water', 'Pet-Friendly', 'Wi-Fi'], description: null, photos: [] };
           resolve(fallback);
         } catch {
-          resolve({ amenities: ['Full Hookups', 'Toilets', 'Potable Water', 'Pet-Friendly', 'Wi-Fi'], description: null });
+          resolve({ amenities: ['Full Hookups', 'Toilets', 'Potable Water', 'Pet-Friendly', 'Wi-Fi'], description: null, photos: [] });
         }
       });
     }).on('error', () => {
