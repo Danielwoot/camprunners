@@ -622,6 +622,37 @@ function fetchHipcampLandDetails(landUrl: string): Promise<any> {
   });
 }
 
+function fetchDyrtPagePhotos(slug: string, region?: string): Promise<string[]> {
+  return new Promise((resolve) => {
+    const regionPath = (region || 'california').toLowerCase().replace(/\s+/g, '-');
+    const url = `https://thedyrt.com/camping/${regionPath}/${slug}`;
+
+    https.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml',
+        'Accept-Encoding': 'gzip, deflate, br'
+      },
+      timeout: 6000
+    }, (res) => {
+      let stream: any = res;
+      if (res.headers['content-encoding'] === 'gzip') stream = res.pipe(zlib.createGunzip());
+      else if (res.headers['content-encoding'] === 'br') stream = res.pipe(zlib.createBrotliDecompress());
+      let body = '';
+      stream.on('data', (c: any) => body += c);
+      stream.on('end', () => {
+        const photoIds = new Set<string>();
+        const photoRegex = /https:\/\/photos\.thedyrt\.com\/photo\/(\d+)\/media\/([^\s"'<>\?]+)/gi;
+        let m;
+        while ((m = photoRegex.exec(body)) !== null) {
+          photoIds.add(`https://photos.thedyrt.com/photo/${m[1]}/media/${m[2]}?width=1200&height=800&fit=crop&format=auto`);
+        }
+        resolve(Array.from(photoIds));
+      });
+    }).on('error', () => resolve([]));
+  });
+}
+
 function fetchCampgroundDetailsDirect(idOrSlug: string): Promise<any> {
   return new Promise((resolve) => {
     if (campgroundCache.has(idOrSlug)) {
@@ -650,7 +681,7 @@ function fetchCampgroundDetailsDirect(idOrSlug: string): Promise<any> {
       else if (res.headers['content-encoding'] === 'deflate') stream = res.pipe(zlib.createInflate());
 
       stream.on('data', (chunk: Buffer) => chunks.push(chunk));
-      stream.on('end', () => {
+      stream.on('end', async () => {
         try {
           const raw = Buffer.concat(chunks).toString('utf8');
           const json = JSON.parse(raw);
@@ -699,6 +730,13 @@ function fetchCampgroundDetailsDirect(idOrSlug: string): Promise<any> {
           if (attr['laundry']) amenitiesList.push('Laundry Facilities on Site');
           if (attr['horse-corral']) amenitiesList.push('Equestrian / Horse Corrals');
 
+          const slug = attr['slug'] || idOrSlug;
+          const region = attr['region-name'] || attr['region'] || 'california';
+          const primaryPhoto = attr['photo-url'] ? `${attr['photo-url']}?width=1200&height=800&fit=crop&format=auto` : null;
+
+          const pagePhotos = await fetchDyrtPagePhotos(slug, region);
+          const allPhotos = [...new Set([primaryPhoto, ...pagePhotos].filter(Boolean) as string[])];
+
           const result = {
             amenities: amenitiesList.length > 0 ? amenitiesList : [
               'Standard Campsite Infrastructure',
@@ -710,7 +748,9 @@ function fetchCampgroundDetailsDirect(idOrSlug: string): Promise<any> {
             numberOfSites: attr['number-of-sites'] || attr['campsites-count'] || null,
             maxVehicleLength: attr['max-vehicle-length-ft'] || null,
             checkIn: attr['check-in-time'] || null,
-            checkOut: attr['check-out-time'] || null
+            checkOut: attr['check-out-time'] || null,
+            photos: allPhotos,
+            image: allPhotos[0] || primaryPhoto || null
           };
 
           campgroundCache.set(idOrSlug, result);
