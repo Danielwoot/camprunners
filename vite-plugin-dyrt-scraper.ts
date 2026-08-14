@@ -1051,7 +1051,7 @@ const CAMPSPOT_PARKS_DATABASE = [
     summary: 'Family-friendly Delta river resort in Lodi, California. Featuring an expansive water park with slides, lazy river, 18-hole mini golf, boat marina, waterfront dining, and pet-friendly RV sites.',
     amenities: ['Water Zone & Waterslides', 'Lazy River & Pools', 'Boat Marina & Launch', 'Mini Golf', 'Full Hookups', 'On-Site Restaurant', 'Pet-Friendly', 'General Store'],
     availabilityType: 'CHECK_AVAILABILITY',
-    contactUrl: 'https://www.campspot.com/park/jellystone-park-tower-park',
+    contactUrl: 'https://www.campspot.com/park/yogi-bear-jellystone-park-tower-park',
     source: 'campspot'
   },
   {
@@ -1112,6 +1112,10 @@ const campspotParkCache = new Map<string, any>();
 
 function fetchCampspotParkDetails(slugOrUrl: string): Promise<any> {
   let cleanSlug = slugOrUrl.replace(/^campspot-/, '').replace(/https?:\/\/[^\/]+\/park\//, '').split('?')[0];
+  if (cleanSlug === 'jellystone-park-tower-park' || cleanSlug === 'tower-park' || cleanSlug === 'tower-park-resort' || cleanSlug === 'jellystone-tower-park') {
+    cleanSlug = 'yogi-bear-jellystone-park-tower-park';
+  }
+
   if (campspotParkCache.has(cleanSlug)) {
     return Promise.resolve(campspotParkCache.get(cleanSlug));
   }
