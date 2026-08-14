@@ -23,42 +23,6 @@
 
 ---
 
-## 📸 Interface Showcase & Feature Demos
-
-<div align="center">
-
-### 🗺️ Live NOAA NEXRAD Doppler Weather Radar & Map Explorer
-*Interactive Leaflet dark HUD canvas streaming real-time precipitation radar overlays and tactical pulse beacons.*
-
-<img src="docs/images/interactive-map-radar.png" alt="Camprunners Interactive Map with NOAA NEXRAD Doppler Radar" width="100%" style="border-radius: 8px; border: 1px solid #00f0ff; box-shadow: 0 0 20px rgba(0,240,255,0.2);" />
-
-</div>
-
-<br />
-
-<div align="center">
-
-### 🤖 Mason A.I. Advisor & 🛰️ GPS Atmospheric Telemetry
-
-<table>
-  <tr>
-    <td width="42%" valign="top">
-      <h4 align="center">🤖 Mason A.I. Advisor HUD</h4>
-      <img src="docs/images/mason-ai-advisor.png" alt="Mason A.I. Advisor Drawer with Tactical Recommendations" style="border-radius: 6px; border: 1px solid #a3e635;" />
-      <p align="center"><sub>Autonomous conversational advisor providing tactical rankings, match scores, and direct Leaflet map tool controls.</sub></p>
-    </td>
-    <td width="58%" valign="top">
-      <h4 align="center">🛰️ Real-Time Telemetry & NWS Hazard Feeds</h4>
-      <img src="docs/images/campsite-telemetry-detail.png" alt="Campsite Detail View with NWS Weather Alerts and Live Open-Meteo Telemetry" style="border-radius: 6px; border: 1px solid #00f0ff;" />
-      <p align="center"><sub>Live Open-Meteo GPS weather metrics, USGS DEM elevations, 7-day microclimate forecasts, and NWS active freeze & squall warnings.</sub></p>
-    </td>
-  </tr>
-</table>
-
-</div>
-
----
-
 ## 📜 Origin & Backstory
 
 > *"Great ideas shouldn't be left behind in a classroom repository."*
@@ -98,6 +62,42 @@ Taking the concept into his own hands, Daniel built **Camprunners** from the gro
 - **7-Day Daily Forecast Hub**: High/low temperatures, microclimate condition trends, and rain probability forecasts for every GPS coordinate.
 - **USGS / Copernicus DEM Elevation**: 100% authentic GPS elevation calculations accurate to within meters.
 - **National Weather Service (NWS) Active Alerts**: Live warnings for freeze watches, high wind advisories, and sudden squall conditions.
+
+---
+
+## 📸 Interface Showcase & Feature Demos
+
+<div align="center">
+
+### 🗺️ Live NOAA NEXRAD Doppler Weather Radar & Map Explorer
+*Interactive Leaflet dark HUD canvas streaming real-time precipitation radar overlays and tactical pulse beacons.*
+
+<img src="docs/images/interactive-map-radar.png" alt="Camprunners Interactive Map with NOAA NEXRAD Doppler Radar" width="100%" style="border-radius: 8px; border: 1px solid #00f0ff; box-shadow: 0 0 20px rgba(0,240,255,0.2);" />
+
+</div>
+
+<br />
+
+<div align="center">
+
+### 🤖 Mason A.I. Advisor & 🛰️ GPS Atmospheric Telemetry
+
+<table>
+  <tr>
+    <td width="42%" valign="top">
+      <h4 align="center">🤖 Mason A.I. Advisor HUD</h4>
+      <img src="docs/images/mason-ai-advisor.png" alt="Mason A.I. Advisor Drawer with Tactical Recommendations" style="border-radius: 6px; border: 1px solid #a3e635;" />
+      <p align="center"><sub>Autonomous conversational advisor providing tactical rankings, match scores, and direct Leaflet map tool controls.</sub></p>
+    </td>
+    <td width="58%" valign="top">
+      <h4 align="center">🛰️ Real-Time Telemetry & NWS Hazard Feeds</h4>
+      <img src="docs/images/campsite-telemetry-detail.png" alt="Campsite Detail View with NWS Weather Alerts and Live Open-Meteo Telemetry" style="border-radius: 6px; border: 1px solid #00f0ff;" />
+      <p align="center"><sub>Live Open-Meteo GPS weather metrics, USGS DEM elevations, 7-day microclimate forecasts, and NWS active freeze & squall warnings.</sub></p>
+    </td>
+  </tr>
+</table>
+
+</div>
 
 ---
 
