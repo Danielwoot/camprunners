@@ -1,4 +1,5 @@
 import { DyrtCampsite } from '../data/dyrtCampsites';
+import { ALL_CAMPSPOT_PARKS } from '../data/campspotParksData';
 import { MapBounds } from './dyrtService';
 
 /**
@@ -11,18 +12,18 @@ export async function fetchCampspotInBounds(bounds: MapBounds): Promise<DyrtCamp
 
   try {
     const response = await fetch(url);
-    if (!response.ok) {
-      console.warn('[Campspot Service] Received non-OK response from proxy:', response.status);
-      return [];
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data) && data.length > 0) {
+        return data;
+      }
     }
-
-    const data = await response.json();
-    if (Array.isArray(data)) {
-      return data;
-    }
-    return [];
   } catch (error) {
-    console.error('[Campspot Service] Error fetching Campspot listings:', error);
-    return [];
+    console.error('[Campspot Service] Error fetching Campspot listings from proxy:', error);
   }
+
+  // Fallback to verified nationwide database
+  return ALL_CAMPSPOT_PARKS.filter(
+    p => p.lat >= minLat && p.lat <= maxLat && p.lng >= minLng && p.lng <= maxLng
+  );
 }
