@@ -36,7 +36,7 @@ export interface DyrtCampsite {
   nwsAlertInstruction?: string;
   alertText?: string;
   locationId?: number | string;
-  source?: 'public' | 'hipcamp';
+  source?: 'public' | 'hipcamp' | 'campspot';
   amenities: string[];
   availabilityType: 'CHECK_AVAILABILITY' | 'FIRST_COME_FIRST_SERVED';
   contactUrl: string;

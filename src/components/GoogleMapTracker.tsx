@@ -31,7 +31,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
   const [isMasonDrawerOpen, setIsMasonDrawerOpen] = useState<boolean>(false);
   const [searchFilter, setSearchFilter] = useState<string>('');
   const [sortBy, setSortBy] = useState<'recommended' | 'rating' | 'reviews'>('recommended');
-  const [selectedProvider, setSelectedProvider] = useState<'ALL' | 'PUBLIC' | 'HIPCAMP'>('ALL');
+  const [selectedProvider, setSelectedProvider] = useState<'ALL' | 'PUBLIC' | 'HIPCAMP' | 'CAMPSPOT'>('ALL');
   const [aiTargetIds, setAiTargetIds] = useState<string[]>([]);
 
   const handleApplyMapActions = (
@@ -138,7 +138,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
     };
   }, []);
 
-  // Fetch unified campgrounds & Hipcamp retreats in bounds
+  // Fetch unified campgrounds, Hipcamp retreats, and Campspot resorts in bounds
   const fetchCampsitesForCurrentBounds = async (map: L.Map) => {
     try {
       setIsLoading(true);
@@ -174,9 +174,11 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
 
     // Filter by provider
     if (selectedProvider === 'PUBLIC') {
-      list = list.filter((s) => s.source !== 'hipcamp');
+      list = list.filter((s) => s.source === 'public' || (!s.source && s.source !== 'hipcamp' && s.source !== 'campspot'));
     } else if (selectedProvider === 'HIPCAMP') {
       list = list.filter((s) => s.source === 'hipcamp');
+    } else if (selectedProvider === 'CAMPSPOT') {
+      list = list.filter((s) => s.source === 'campspot');
     }
 
     if (searchFilter.trim()) {
@@ -235,13 +237,25 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
       const isSelected = activeSite?.id === site.id;
       const isAiTarget = aiTargetIds.includes(site.id);
       const isHipcamp = site.source === 'hipcamp';
-      const mainColor = isSelected ? '#fcee0a' : isAiTarget ? '#a3e635' : isHipcamp ? '#ff6b35' : '#00f0ff';
+      const isCampspot = site.source === 'campspot';
+      const mainColor = isSelected
+        ? '#fcee0a'
+        : isAiTarget
+        ? '#a3e635'
+        : isHipcamp
+        ? '#ff6b35'
+        : isCampspot
+        ? '#10b981'
+        : '#00f0ff';
+
       const pulseBg = isSelected
         ? 'rgba(252, 238, 10, 0.25)'
         : isAiTarget
         ? 'rgba(163, 230, 53, 0.3)'
         : isHipcamp
         ? 'rgba(255, 107, 53, 0.25)'
+        : isCampspot
+        ? 'rgba(16, 185, 129, 0.25)'
         : 'rgba(0, 240, 255, 0.15)';
 
       const customIcon = L.divIcon({
@@ -266,22 +280,22 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
               position: absolute;
               width: ${isSelected || isAiTarget ? '32px' : '20px'};
               height: ${isSelected || isAiTarget ? '32px' : '20px'};
-              border-radius: ${isHipcamp ? '4px' : '50%'};
+              border-radius: ${isHipcamp ? '4px' : isCampspot ? '6px' : '50%'};
               background: ${pulseBg};
               border: 1px solid ${mainColor};
               animation: ${isSelected || isAiTarget ? 'ping 2s cubic-bezier(0, 0, 0.2, 1) infinite' : 'pulse 2.5s infinite'};
-              transform: ${isHipcamp ? 'rotate(45deg)' : 'none'};
+              transform: ${isHipcamp ? 'rotate(45deg)' : isCampspot ? 'rotate(30deg)' : 'none'};
             "></div>
 
             <!-- Central Tactical Pin Dot -->
             <div style="
               width: ${isSelected || isAiTarget ? '14px' : '10px'};
               height: ${isSelected || isAiTarget ? '14px' : '10px'};
-              border-radius: ${isHipcamp ? '2px' : '50%'};
+              border-radius: ${isHipcamp ? '2px' : isCampspot ? '3px' : '50%'};
               background: ${mainColor};
-              box-shadow: 0 0 ${isSelected ? '12px #fcee0a' : isAiTarget ? '14px #a3e635' : isHipcamp ? '8px #ff6b35' : '8px #00f0ff'};
+              box-shadow: 0 0 ${isSelected ? '12px #fcee0a' : isAiTarget ? '14px #a3e635' : isHipcamp ? '8px #ff6b35' : isCampspot ? '8px #10b981' : '8px #00f0ff'};
               border: 2px solid #050505;
-              transform: ${isHipcamp ? 'rotate(45deg)' : 'none'};
+              transform: ${isHipcamp ? 'rotate(45deg)' : isCampspot ? 'rotate(30deg)' : 'none'};
               transition: all 0.2s ease;
             "></div>
 
@@ -304,7 +318,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
               box-shadow: 0 4px 12px rgba(0,0,0,0.8);
               display: ${isSelected || isAiTarget ? 'block' : 'none'};
             " class="group-hover:!block">
-              ${isAiTarget ? '🎯 ' : isHipcamp ? '⚡ ' : '⛺ '}${site.name}
+              ${isAiTarget ? '🎯 ' : isHipcamp ? '⚡ ' : isCampspot ? '⬡ ' : '⛺ '}${site.name}
             </div>
           </div>
         `,
@@ -417,7 +431,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
         {/* Provider Source Tabs & Search Bar */}
         <div className="p-3 border-b border-gray-800/80 bg-[#080808] space-y-2.5">
           {/* Provider Filter Segment */}
-          <div className="grid grid-cols-3 gap-1 font-mono text-[10px] font-bold">
+          <div className="grid grid-cols-4 gap-1 font-mono text-[9px] font-bold">
             <button
               onClick={() => setSelectedProvider('ALL')}
               className={`py-1.5 text-center uppercase tracking-wider transition-colors chamfered-btn ${
@@ -432,7 +446,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
               onClick={() => setSelectedProvider('PUBLIC')}
               className={`py-1.5 text-center uppercase tracking-wider transition-colors chamfered-btn ${
                 selectedProvider === 'PUBLIC'
-                  ? 'bg-[#a3e635] text-black font-black'
+                  ? 'bg-[#00f0ff] text-black font-black'
                   : 'bg-[#121212] text-gray-400 border border-gray-800 hover:text-white'
               }`}
             >
@@ -447,6 +461,16 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
               }`}
             >
               HIPCAMP
+            </button>
+            <button
+              onClick={() => setSelectedProvider('CAMPSPOT')}
+              className={`py-1.5 text-center uppercase tracking-wider transition-colors chamfered-btn ${
+                selectedProvider === 'CAMPSPOT'
+                  ? 'bg-[#10b981] text-black font-black'
+                  : 'bg-[#121212] text-gray-400 border border-gray-800 hover:text-white'
+              }`}
+            >
+              CAMPSPOT
             </button>
           </div>
 
@@ -522,6 +546,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
           {visibleCampsites.map((site) => {
             const isSelected = activeSite?.id === site.id;
             const isHipcamp = site.source === 'hipcamp';
+            const isCampspot = site.source === 'campspot';
 
             return (
               <div
@@ -532,6 +557,8 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
                     ? 'border-[#fcee0a] shadow-[0_0_15px_rgba(252,238,10,0.3)]'
                     : isHipcamp
                     ? 'border-[#ff6b35]/40 hover:border-[#ff6b35]'
+                    : isCampspot
+                    ? 'border-[#10b981]/40 hover:border-[#10b981]'
                     : 'border-[#00f0ff]/30 hover:border-[#00f0ff]'
                 }`}
               >
@@ -546,9 +573,9 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
                   {/* Provider Source Tag */}
                   <div className="absolute top-2 right-2 z-20">
                     <span className={`font-mono text-[9px] font-black px-2 py-0.5 uppercase tracking-widest ${
-                      isHipcamp ? 'bg-[#ff6b35] text-black' : 'bg-[#00f0ff] text-black'
+                      isHipcamp ? 'bg-[#ff6b35] text-black' : isCampspot ? 'bg-[#10b981] text-black' : 'bg-[#00f0ff] text-black'
                     }`}>
-                      {isHipcamp ? 'HIPCAMP' : 'PUBLIC'}
+                      {isHipcamp ? 'HIPCAMP' : isCampspot ? 'CAMPSPOT' : 'PUBLIC'}
                     </span>
                   </div>
 

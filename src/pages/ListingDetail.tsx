@@ -269,9 +269,13 @@ export default function ListingDetail() {
                     {campsite.locationName}, {campsite.state}
                   </span>
                   <span className={`font-mono text-[9px] font-black px-2 py-0.5 uppercase tracking-widest ${
-                    campsite.source === 'hipcamp' ? 'bg-[#ff6b35] text-black' : 'bg-[#00f0ff] text-black'
+                    campsite.source === 'hipcamp'
+                      ? 'bg-[#ff6b35] text-black'
+                      : campsite.source === 'campspot'
+                      ? 'bg-[#10b981] text-black'
+                      : 'bg-[#00f0ff] text-black'
                   }`}>
-                    {campsite.source === 'hipcamp' ? 'HIPCAMP' : 'PUBLIC'}
+                    {campsite.source === 'hipcamp' ? 'HIPCAMP' : campsite.source === 'campspot' ? 'CAMPSPOT' : 'PUBLIC'}
                   </span>
                 </div>
                 <h2 className="text-3xl font-['Orbitron'] font-black text-white uppercase tracking-widest leading-tight">

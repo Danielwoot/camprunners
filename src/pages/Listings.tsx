@@ -6,7 +6,7 @@ import { CampsiteCard } from '../components/CampsiteCard';
 export default function Listings() {
   const { campsites } = useCamprunner();
   const [selectedTerrain, setSelectedTerrain] = useState<string>('ALL');
-  const [selectedProvider, setSelectedProvider] = useState<'ALL' | 'PUBLIC' | 'HIPCAMP'>('ALL');
+  const [selectedProvider, setSelectedProvider] = useState<'ALL' | 'PUBLIC' | 'HIPCAMP' | 'CAMPSPOT'>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortBy, setSortBy] = useState<'relevance' | 'rating' | 'elevation' | 'price' | 'name'>('relevance');
 
@@ -40,8 +40,9 @@ export default function Listings() {
     return campsites
       .filter((site) => {
         // Provider filter
-        if (selectedProvider === 'PUBLIC' && site.source === 'hipcamp') return false;
+        if (selectedProvider === 'PUBLIC' && (site.source === 'hipcamp' || site.source === 'campspot')) return false;
         if (selectedProvider === 'HIPCAMP' && site.source !== 'hipcamp') return false;
+        if (selectedProvider === 'CAMPSPOT' && site.source !== 'campspot') return false;
 
         // Terrain filter
         if (selectedTerrain !== 'ALL' && site.terrain !== selectedTerrain) return false;
@@ -95,7 +96,7 @@ export default function Listings() {
       {campsites.length > 0 && (
         <section className="bg-[#121212] border border-[#00f0ff]/30 p-5 chamfered-card space-y-4 shadow-lg">
           {/* Provider Selection Tabs */}
-          <div className="flex items-center gap-2 border-b border-gray-800 pb-3 font-mono text-xs">
+          <div className="flex flex-wrap items-center gap-2 border-b border-gray-800 pb-3 font-mono text-xs">
             <span className="text-gray-400 uppercase text-[10px] font-bold mr-1">DATA PROVIDER:</span>
             <button
               onClick={() => setSelectedProvider('ALL')}
@@ -111,7 +112,7 @@ export default function Listings() {
               onClick={() => setSelectedProvider('PUBLIC')}
               className={`px-3 py-1.5 font-bold uppercase tracking-wider chamfered-btn transition-colors ${
                 selectedProvider === 'PUBLIC'
-                  ? 'bg-[#a3e635] text-black font-black shadow-[0_0_10px_rgba(163,230,53,0.4)]'
+                  ? 'bg-[#00f0ff] text-black font-black shadow-[0_0_10px_rgba(0,240,255,0.4)]'
                   : 'bg-[#050505] border border-gray-800 text-gray-400 hover:text-white'
               }`}
             >
@@ -126,6 +127,16 @@ export default function Listings() {
               }`}
             >
               HIPCAMP EXCLUSIVE
+            </button>
+            <button
+              onClick={() => setSelectedProvider('CAMPSPOT')}
+              className={`px-3 py-1.5 font-bold uppercase tracking-wider chamfered-btn transition-colors ${
+                selectedProvider === 'CAMPSPOT'
+                  ? 'bg-[#10b981] text-black font-black shadow-[0_0_10px_rgba(16,185,129,0.4)]'
+                  : 'bg-[#050505] border border-gray-800 text-gray-400 hover:text-white'
+              }`}
+            >
+              CAMPSPOT RESORTS
             </button>
           </div>
 

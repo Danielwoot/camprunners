@@ -16,9 +16,13 @@ export const CampsiteCard: React.FC<CampsiteCardProps> = ({ campsite }) => {
         <div className="flex items-center gap-2">
           <span className="text-[#00f0ff] font-bold tracking-widest">{campsite.locationName}, {campsite.state}</span>
           <span className={`text-[9px] font-black px-1.5 py-0.2 uppercase ${
-            campsite.source === 'hipcamp' ? 'bg-[#ff6b35] text-black' : 'bg-[#00f0ff] text-black'
+            campsite.source === 'hipcamp'
+              ? 'bg-[#ff6b35] text-black'
+              : campsite.source === 'campspot'
+              ? 'bg-[#10b981] text-black'
+              : 'bg-[#00f0ff] text-black'
           }`}>
-            {campsite.source === 'hipcamp' ? 'HIPCAMP' : 'PUBLIC'}
+            {campsite.source === 'hipcamp' ? 'HIPCAMP' : campsite.source === 'campspot' ? 'CAMPSPOT' : 'PUBLIC'}
           </span>
         </div>
         <span className="text-[#a3e635] font-bold uppercase text-[10px]">{campsite.terrain}</span>

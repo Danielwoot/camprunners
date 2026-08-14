@@ -217,7 +217,7 @@ export const MasonAIAdvisorDrawer: React.FC<MasonAIAdvisorDrawerProps> = ({
                               RANK #{idx + 1}
                             </span>
                             <span className="font-mono text-[10px] text-[#a3e635] font-bold uppercase">
-                              {site.source === 'hipcamp' ? 'HIPCAMP' : 'PUBLIC'}
+                              {site.source === 'hipcamp' ? 'HIPCAMP' : site.source === 'campspot' ? 'CAMPSPOT' : 'PUBLIC'}
                             </span>
                           </div>
                           <h4 className="font-['Space_Grotesk'] text-base font-bold text-white leading-tight">

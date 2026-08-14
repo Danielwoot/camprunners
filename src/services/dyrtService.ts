@@ -1,5 +1,6 @@
 import { DYRT_CAMPSITES_DATA, DyrtCampsite } from '../data/dyrtCampsites';
 import { fetchHipcampInBounds } from './hipcampService';
+import { fetchCampspotInBounds } from './campspotService';
 
 export interface MapBounds {
   minLat: number;
@@ -51,12 +52,13 @@ export async function fetchCampsitesInBounds(bounds: MapBounds): Promise<DyrtCam
 }
 
 /**
- * Fetch unified stream combining both Public campgrounds and Hipcamp retreats concurrently.
+ * Fetch unified stream combining Public campgrounds, Hipcamp retreats, and Campspot resorts concurrently.
  */
 export async function fetchUnifiedCampsitesInBounds(bounds: MapBounds): Promise<DyrtCampsite[]> {
-  const [publicSites, hipcampSites] = await Promise.all([
+  const [publicSites, hipcampSites, campspotSites] = await Promise.all([
     fetchCampsitesInBounds(bounds),
-    fetchHipcampInBounds(bounds)
+    fetchHipcampInBounds(bounds),
+    fetchCampspotInBounds(bounds)
   ]);
 
   const map = new Map<string, DyrtCampsite>();
@@ -66,6 +68,11 @@ export async function fetchUnifiedCampsitesInBounds(bounds: MapBounds): Promise<
   for (const site of hipcampSites) {
     if (!map.has(site.id)) {
       map.set(site.id, { ...site, source: 'hipcamp' });
+    }
+  }
+  for (const site of campspotSites) {
+    if (!map.has(site.id)) {
+      map.set(site.id, { ...site, source: 'campspot' });
     }
   }
 
