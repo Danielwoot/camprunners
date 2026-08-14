@@ -1,0 +1,237 @@
+<!DOCTYPE html><html class="dark" lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Camprunners - Trail Intelligence</title>
+<style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&amp;family=Rajdhani:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#a3e635",
+            "background-light": "#e5e7eb",
+            "background-dark": "#050a0a",
+            "grid-line-light": "rgba(0, 0, 0, 0.05)",
+            "grid-line-dark": "rgba(12, 59, 46, 0.5)",
+            "card-light": "#ffffff",
+            "card-dark": "#0a1212",
+          },
+          fontFamily: {
+            display: ['Orbitron', 'sans-serif'],
+            body: ['Rajdhani', 'sans-serif'],
+          },
+          borderRadius: {
+            DEFAULT: "0px",
+          },
+          backgroundImage: {
+            'grid-pattern-dark': 'linear-gradient(to right, rgba(20, 83, 74, 0.3) 1px, transparent 1px), linear-gradient(to bottom, rgba(20, 83, 74, 0.3) 1px, transparent 1px)',
+            'grid-pattern-light': 'linear-gradient(to right, rgba(0, 0, 0, 0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 1px, transparent 1px)',
+          }
+        },
+      },
+    };
+  </script>
+<style>
+    body {
+      background-size: 30px 30px;
+    }
+    .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+</style>
+</head>
+<body class="bg-background-light dark:bg-background-dark bg-grid-pattern-light dark:bg-grid-pattern-dark min-h-screen text-gray-900 dark:text-gray-100 font-body p-6 md:p-12 flex flex-col">
+<!-- Shared Component: TopNavBar (Adapted to Theme) -->
+<header class="mb-12 text-center md:text-left border-b-2 border-primary pb-4 flex flex-col md:flex-row justify-between items-end gap-6">
+<div>
+<h1 class="text-4xl md:text-6xl font-display font-black text-primary tracking-widest uppercase" style="text-shadow: 2px 2px 0px rgba(0,0,0,0.5);">
+      Camprunners
+    </h1>
+<div class="h-1 w-full max-w-md bg-gradient-to-r from-cyan-500 to-primary mt-2"></div>
+</div>
+<nav class="flex items-center gap-6 font-display font-bold uppercase text-sm tracking-wider"><a aria-current="page" class="text-primary border-b-2 border-primary pb-1" data-path="home" href="#">HOME</a>
+<a class="text-gray-400 hover:text-white transition-colors" data-path="map" href="#">MAP</a>
+<a class="text-gray-400 hover:text-white transition-colors" data-path="listings" href="#">LISTINGS</a></nav>
+</header>
+<main class="max-w-7xl mx-auto w-full flex flex-col gap-12">
+<!-- Hero Section -->
+<section class="w-full relative">
+<div class="relative z-10 flex flex-col md:flex-row justify-between items-end gap-8">
+<div class="flex flex-col">
+<h1 class="font-display font-black text-white text-5xl md:text-6xl uppercase tracking-widest leading-none mb-6">ADVANCED TRAIL INTELLIGENCE</h1>
+<p class="text-gray-300 font-body text-xl max-w-2xl mt-4 border-l-2 border-primary pl-4 bg-gray-900/50 py-3">
+                        Real-time weather telemetry, tactical mapping, and predictive route analysis for high-altitude running.
+                    </p>
+<button class="mt-8 flex w-fit cursor-pointer items-center justify-center gap-2 px-8 py-4 bg-primary hover:bg-white text-black font-display font-bold uppercase transition-colors shadow-[0_0_15px_rgba(163,230,53,0.3)] hover:shadow-[0_0_25px_rgba(163,230,53,0.5)] border-2 border-primary text-lg tracking-wider">
+<span class="material-symbols-outlined text-xl">route</span>
+<span class="">Find Campsites</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Technical Dashboard: Weather & Alerts -->
+<section class="w-full flex flex-col gap-6">
+<div class="flex items-center justify-between border-b-2 border-gray-800 pb-2">
+<h2 class="text-xl font-display font-bold text-primary uppercase tracking-wide">Weather Conditions</h2>
+<span class="font-mono text-gray-500 text-sm uppercase tracking-wider font-bold">Live as of Xx:xx AM/PM</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<!-- Data Card 1 -->
+<div class="flex flex-col gap-3 p-6 bg-card-light dark:bg-card-dark border-2 border-gray-300 dark:border-gray-800 relative group">
+<div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-6xl text-primary">thermostat</span>
+</div>
+<div class="flex items-center gap-2 border-b border-gray-800 pb-2 mb-2">
+<span class="material-symbols-outlined text-primary text-sm">device_thermostat</span>
+<p class="text-gray-500 font-mono text-xs uppercase font-bold tracking-wider">Core Temp</p>
+</div>
+<div class="flex items-baseline gap-3 mt-2">
+<p class="text-white font-display font-bold text-5xl">42°</p>
+<p class="text-cyan-500 font-mono text-sm tracking-widest">F</p>
+</div>
+<p class="text-red-400 font-mono text-sm flex items-center gap-1 mt-auto pt-4 border-t border-gray-800 tracking-widest">
+<span class="material-symbols-outlined text-sm">trending_down</span> -2.4° / hr
+                    </p>
+</div>
+<!-- Data Card 2 -->
+<div class="flex flex-col gap-3 p-6 bg-card-light dark:bg-card-dark border-2 border-gray-300 dark:border-gray-800 relative group">
+<div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-6xl text-primary">air</span>
+</div>
+<div class="flex items-center gap-2 border-b border-gray-800 pb-2 mb-2">
+<span class="material-symbols-outlined text-primary text-sm">air</span>
+<p class="text-gray-500 font-mono text-xs uppercase font-bold tracking-wider">Wind Velocity</p>
+</div>
+<div class="flex items-baseline gap-3 mt-2">
+<p class="text-white font-display font-bold text-5xl">18</p>
+<p class="text-cyan-500 font-mono text-sm tracking-widest">MPH</p>
+</div>
+<p class="text-red-400 font-mono text-sm flex items-center gap-1 mt-auto pt-4 border-t border-gray-800 tracking-widest">
+<span class="material-symbols-outlined text-sm">trending_up</span> Gusts up to 35
+                    </p>
+</div>
+<!-- Data Card 3 -->
+<div class="flex flex-col gap-3 p-6 bg-card-light dark:bg-card-dark border-2 border-gray-300 dark:border-gray-800 relative group">
+<div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-6xl text-primary">water_drop</span>
+</div>
+<div class="flex items-center gap-2 border-b border-gray-800 pb-2 mb-2">
+<span class="material-symbols-outlined text-primary text-sm">rainy</span>
+<p class="text-gray-500 font-mono text-xs uppercase font-bold tracking-wider">Precip Probability</p>
+</div>
+<div class="flex items-baseline gap-3 mt-2">
+<p class="text-white font-display font-bold text-5xl">65</p>
+<p class="text-cyan-500 font-mono text-sm tracking-widest">%</p>
+</div>
+<p class="text-primary font-mono text-sm flex items-center gap-1 mt-auto pt-4 border-t border-gray-800 tracking-widest">
+<span class="material-symbols-outlined text-sm">radar</span> Tracking front
+                    </p>
+</div>
+</div>
+<!-- Active Warning Banner -->
+<div class="flex items-start md:items-center gap-4 bg-red-950/20 border-2 border-red-500/30 p-4 mt-2 shadow-md relative overflow-hidden group hover:border-red-500/50 transition-colors">
+<div class="absolute -left-[1px] top-4 bottom-4 w-[3px] bg-red-500/50 group-hover:bg-red-500 transition-colors shadow-[0_0_10px_rgba(239,68,68,0.8)]"></div>
+<div class="text-red-500 flex items-center justify-center shrink-0 mt-1 md:mt-0 pl-2">
+<span class="material-symbols-outlined text-3xl" style="font-variation-settings: &quot;FILL&quot; 1;">warning</span>
+</div>
+<div class="flex flex-col flex-1">
+<p class="text-red-500 font-display font-bold text-sm uppercase tracking-widest mb-1">Severe Weather Alert</p>
+<p class="text-red-200 font-body text-lg">High winds and low visibility detected on active routes above 8,000ft. Proceed with extreme caution. Micro-spikes recommended.</p>
+</div>
+<button class="shrink-0 text-gray-500 hover:text-red-500 transition-colors self-start md:self-center">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+</section>
+<!-- Real-Time Map Area -->
+<section class="w-full flex flex-col gap-6 mb-12">
+<div class="flex items-center justify-between border-b-2 border-gray-800 pb-2">
+<h2 class="text-xl font-display font-bold text-primary uppercase tracking-wide">Map</h2>
+<div class="flex gap-2">
+<button class="flex items-center gap-2 px-4 py-2 bg-card-dark border-2 border-gray-800 hover:border-primary text-gray-300 hover:text-primary transition-colors font-display text-xs font-bold uppercase tracking-wider">
+<span class="material-symbols-outlined text-[16px]">layers</span>
+<span class="">Terrain</span>
+</button>
+</div>
+</div>
+<!-- Map Container -->
+<div class="relative w-full h-[600px] border-2 border-gray-800 overflow-hidden bg-card-dark shadow-2xl group/map">
+<div class="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-primary z-20"></div>
+<div class="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-primary z-20"></div>
+<div class="absolute inset-0 opacity-80 mix-blend-luminosity filter contrast-125 brightness-75 grayscale hover:grayscale-0 transition-all duration-1000" style="background-image: url(&quot;https://lh3.googleusercontent.com/aida-public/AB6AXuB_aSQU_oX2DaXpgmj54qLpZUEd2wUUkc9cp-nUbQepOSsedUZYjBXl3ejeuLmY4a7CSlzeMDuSZJHRJHO1EdWOOY8iJ-_Fz8sxh2wIU7TDmUKnuNtPkVFQNzE6d_5210e08jDtlNyGlh0T5j8aH27XDFJnsx-Tm1F9tGOYNykIPPvdGBzzith56BxQIjPMComy507G_pbCFuSXRxJqbc0I4f3XFOMZwC7mWjXZjhEHWLglGBXBzrebOQ&quot;); background-size: cover; background-position: center center;"></div>
+<!-- Map UI Overlays -->
+<div class="absolute inset-0 bg-gray-950/20 pointer-events-none"></div>
+<!-- Floating Data Box (Top Left) -->
+<div class="absolute top-6 left-6 bg-card-dark/90 backdrop-blur-md border border-gray-800 p-4 shadow-lg flex flex-col gap-2 pointer-events-auto max-w-[250px] z-10">
+<div class="font-mono font-bold text-[10px] text-gray-500 uppercase border-b border-gray-800 pb-2 mb-2 flex items-center gap-2">
+<div class="w-2 h-2 rounded-none bg-primary animate-pulse"></div>
+<span class="">Active Tracking</span>
+</div>
+<div class="font-mono text-gray-300 text-sm flex justify-between">
+<span class="text-gray-500">LAT:</span> <span class="text-cyan-500">40.3428° N</span>
+</div>
+<div class="font-mono text-gray-300 text-sm flex justify-between">
+<span class="text-gray-500">LNG:</span> <span class="text-cyan-500">105.6836° W</span>
+</div>
+<div class="font-mono text-gray-300 text-sm flex justify-between border-t border-gray-800 pt-2 mt-1">
+<span class="text-gray-500">ELEV:</span> <span class="text-primary font-bold">9,450 FT</span>
+</div>
+</div>
+<!-- Route Marker (Center) -->
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 group/marker cursor-crosshair z-10">
+<div class="w-12 h-12 relative flex items-center justify-center">
+<div class="absolute inset-0 border border-primary rounded-none animate-[spin_4s_linear_infinite] opacity-50"></div>
+<div class="absolute inset-2 border-t border-r border-primary rounded-none animate-[spin_3s_linear_infinite_reverse]"></div>
+<div class="w-2 h-2 bg-primary shadow-[0_0_10px_#a3e635]"></div>
+<div class="absolute left-full top-1/2 -translate-y-1/2 ml-4 w-48 bg-card-dark/95 backdrop-blur-sm border-2 border-primary p-3 hidden group-hover/marker:block z-20">
+<div class="font-display text-sm font-bold text-primary uppercase mb-1 border-b border-primary/30 pb-1">Waypoint Alpha</div>
+</div>
+</div>
+</div>
+<!-- Zoom Controls (Bottom Right) -->
+<div class="absolute bottom-8 right-8 flex flex-col gap-2 pointer-events-auto z-10">
+<button class="w-10 h-10 bg-card-dark/90 backdrop-blur-md border border-gray-800 flex items-center justify-center text-gray-300 hover:text-primary hover:border-primary transition-colors shadow-lg">
+<span class="material-symbols-outlined">add</span>
+</button>
+<button class="w-10 h-10 bg-card-dark/90 backdrop-blur-md border border-gray-800 flex items-center justify-center text-gray-300 hover:text-primary hover:border-primary transition-colors shadow-lg">
+<span class="material-symbols-outlined">remove</span>
+</button>
+<button class="w-10 h-10 mt-2 bg-card-dark/90 backdrop-blur-md border border-gray-800 flex items-center justify-center text-gray-300 hover:text-cyan-500 hover:border-cyan-500 transition-colors shadow-lg">
+<span class="material-symbols-outlined">my_location</span>
+</button>
+</div>
+<!-- Scale indicator (Bottom Left) -->
+<div class="absolute bottom-6 left-6 flex items-end gap-2 bg-card-dark/80 p-2 border border-gray-800 z-10">
+<div class="flex flex-col items-start">
+<span class="font-mono font-bold text-[10px] text-gray-500 mb-1">2 MI / 3.2 KM</span>
+<div class="w-24 h-[2px] bg-primary relative">
+<div class="absolute top-0 right-0 w-[1px] h-2 bg-primary -mt-1"></div>
+<div class="absolute top-0 left-0 w-[1px] h-2 bg-primary -mt-1"></div>
+<div class="absolute top-0 left-1/2 w-[1px] h-1.5 bg-primary -mt-0.5"></div>
+</div>
+</div>
+</div>
+<!-- Crosshairs Decorative -->
+<div class="absolute inset-0 pointer-events-none opacity-20">
+<div class="absolute top-1/2 left-0 w-full h-[1px] bg-primary"></div>
+<div class="absolute top-0 left-1/2 w-[1px] h-full bg-primary"></div>
+</div>
+</div>
+</section>
+</main>
+<footer class="w-full bg-card-dark border-t-2 border-gray-800 py-6 mt-auto">
+<div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+<div class="font-mono text-xs font-bold uppercase text-gray-500 tracking-widest">© 2026 Daniel Palomera</div>
+<div class="flex gap-6">
+
+
+</div>
+</div>
+</footer>
+
+
+</body></html>

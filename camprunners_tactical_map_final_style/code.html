@@ -1,0 +1,111 @@
+<!DOCTYPE html><html class="dark" lang="en" style=""><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0" name="viewport"><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}
+body { background-size: 30px 30px; }
+</style><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"on-primary-fixed":"#161e00","surface-bright":"#363a3a","primary-fixed":"#c3f400","on-tertiary-fixed":"#091f1f","on-secondary-fixed-variant":"#004f54","primary":"#ffffff","surface-container-highest":"#313635","on-primary-container":"#556d00","surface-dim":"#101414","tertiary":"#ffffff","surface-variant":"#313635","on-primary-fixed-variant":"#3c4d00","surface-tint":"#abd600","on-tertiary-container":"#536868","secondary-fixed":"#7df4ff","inverse-primary":"#506600","inverse-surface":"#e0e3e2","tertiary-fixed":"#d0e7e6","tertiary-container":"#d0e7e6","primary-fixed-dim":"#abd600","on-surface":"#e0e3e2","on-secondary-fixed":"#002022","on-tertiary":"#1f3434","on-error-container":"#ffdad6","on-secondary":"#00363a","error":"#ffb4ab","surface-container-low":"#181c1c","on-secondary-container":"#00686f","surface-container-lowest":"#0b0f0f","tertiary-fixed-dim":"#b4cbca","primary-container":"#c3f400","surface-container":"#1c2020","on-surface-variant":"#c4c9ac","on-primary":"#283500","background":"#050a0a","error-container":"#93000a","surface":"#0a1212","on-error":"#690005","secondary-fixed-dim":"#00dbe9","inverse-on-surface":"#2d3131","outline":"#8e9379","secondary":"#d3fbff","surface-container-high":"#272b2b","on-tertiary-fixed-variant":"#354b4a","outline-variant":"#1f2937","on-background":"#e0e3e2","secondary-container":"#00eefc"},"borderRadius":{"DEFAULT":"0px","lg":"0px","xl":"0px","full":"0px"},"spacing":{"margin-lg":"80px","margin-sm":"16px","container-max":"1440px","gutter":"24px","margin-md":"40px","grid-unit":"4px"},"fontFamily":{"body-sm":["Rajdhani"],"headline-lg":["Orbitron"],"label-caps":["Orbitron"],"data-mono":["Rajdhani"],"body-md":["Rajdhani"],"headline-lg-mobile":["Orbitron"],"headline-xl":["Orbitron"]},"fontSize":{"body-sm":["14px",{"lineHeight":"1.5","fontWeight":"400"}],"headline-lg":["40px",{"lineHeight":"1.2","letterSpacing":"-0.01em","fontWeight":"700"}],"label-caps":["12px",{"lineHeight":"1.0","letterSpacing":"0.1em","fontWeight":"700"}],"data-mono":["16px",{"lineHeight":"1.0","fontWeight":"500"}],"body-md":["16px",{"lineHeight":"1.6","letterSpacing":"0.01em","fontWeight":"400"}],"headline-lg-mobile":["32px",{"lineHeight":"1.2","fontWeight":"700"}],"headline-xl":["64px",{"lineHeight":"1.1","letterSpacing":"-0.02em","fontWeight":"700"}]},"backgroundImage":{"grid-pattern-dark":"linear-gradient(to right, rgba(20, 83, 74, 0.3) 1px, transparent 1px), linear-gradient(to bottom, rgba(20, 83, 74, 0.3) 1px, transparent 1px)"}}}}</script><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&amp;family=Rajdhani:wght@400;500;600;700&amp;display=swap" rel="stylesheet"></head><body class="bg-background bg-grid-pattern-dark font-body-md text-on-background min-h-screen p-6 md:p-12"><header class="mb-12 border-b-2 border-primary-fixed pb-4 flex justify-between items-end"><div class="flex items-center gap-margin-sm"><div><h1 class="text-4xl md:text-5xl font-headline-lg font-black text-primary-fixed tracking-widest uppercase" style="text-shadow: rgba(0, 0, 0, 0.5) 2px 2px 0px;">CAMPRUNNERS</h1><div class="h-1 w-full max-w-md bg-gradient-to-r from-secondary-fixed to-primary-fixed mt-2"></div></div></div><nav class="hidden md:flex items-center gap-gutter pb-1" data-active-classes="text-primary-fixed"><a aria-current="page" class="font-headline-lg font-bold uppercase transition-colors text-primary-fixed text-sm tracking-wider" data-path="home" href="#">HOME</a><a class="font-headline-lg font-bold uppercase text-on-surface-variant hover:text-primary-fixed transition-colors text-sm tracking-wider" data-path="campgrounds" href="#">CAMPGROUNDS</a><a class="font-headline-lg font-bold uppercase text-on-surface-variant hover:text-primary-fixed transition-colors text-sm tracking-wider" data-path="gear-hub" href="#">GEAR HUB</a><a class="font-headline-lg font-bold uppercase text-on-surface-variant hover:text-primary-fixed transition-colors text-sm tracking-wider" data-path="mission-control" href="#">MISSION CONTROL</a></nav></header><main class="w-full max-w-7xl mx-auto"><div class="flex flex-col w-full h-[calc(100vh-200px)] relative overflow-hidden bg-surface border-2 border-outline-variant font-body-md text-on-background group p-2">
+<!-- Header Area overlapping Map slightly -->
+<div class="absolute top-0 left-0 w-full z-10 p-6 pointer-events-none flex flex-col gap-2">
+<div class="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-primary-fixed opacity-100"></div>
+<div class="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-primary-fixed opacity-100"></div>
+<h2 class="text-4xl font-headline-lg font-black text-primary-fixed uppercase tracking-widest leading-none drop-shadow-lg mix-blend-plus-lighter">// MAP</h2>
+
+</div>
+<!-- Main Map Container -->
+<div class="flex-grow w-full relative h-full bg-gray-900 overflow-hidden flex items-center justify-center border border-outline-variant/30 mt-24">
+<!-- Tactical Map Background (Placeholder for Google Map) -->
+<div class="absolute inset-0 w-full h-full bg-cover bg-center opacity-40 mix-blend-luminosity" data-location="Cascadia Subduction Zone" style="background-image: url(&quot;https://lh3.googleusercontent.com/aida-public/AB6AXuBq4TsCsZ_drAYnSsqJkk9OZt1XFXUz5DSI7GREQhYKaJy1dTPgV4eH9dGC3vrqKRGbhNXFEWMOVE79nEc3mqmlpKl3IHi6boyu6sYKPwLtwTBC5ow5ZgYLwzVJfR0QrUb1xWFN51MMFLawn3EHo8p90exLW56GDCjWExt5RP6RFTVLLgiA-wR8OVaiKmEbwIh2Mb0DS2n7PozSElrwrSl313myPftTSHwvnGELW72-syU-bzwQOAOemA&quot;);"></div>
+<!-- Map Overlay UI Controls -->
+<div class="absolute top-4 right-4 flex flex-col gap-4 z-20">
+<div class="flex items-center bg-background border-2 border-outline-variant shadow-md overflow-hidden">
+<button class="px-4 py-2 font-headline-lg font-bold uppercase text-on-surface hover:text-primary-fixed hover:bg-surface transition-colors flex items-center gap-2 group border-r border-outline-variant text-sm tracking-wider">
+<span class="material-symbols-outlined text-[16px] group-hover:text-primary-fixed transition-colors">map</span>
+                     TERRAIN
+                </button>
+<button class="px-4 py-2 font-headline-lg font-bold uppercase text-on-surface hover:text-primary-fixed hover:bg-surface transition-colors flex items-center gap-2 group text-sm tracking-wider">
+<span class="material-symbols-outlined text-[16px] group-hover:text-primary-fixed transition-colors">satellite</span>
+                     SAT
+                </button>
+</div>
+</div>
+<!-- Map Navigation Controls (Bottom Right) -->
+<div class="absolute bottom-4 right-4 flex flex-col gap-2 z-20 bg-background p-1 border-2 border-outline-variant shadow-lg">
+<button class="w-10 h-10 flex items-center justify-center text-on-surface hover:text-primary hover:bg-primary-fixed/20 transition-colors border-b border-outline-variant">
+<span class="material-symbols-outlined">add</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center text-on-surface hover:text-primary hover:bg-primary-fixed/20 transition-colors">
+<span class="material-symbols-outlined">remove</span>
+</button>
+<div class="w-10 h-10 flex items-center justify-center text-on-surface mt-2 pt-2 border-t border-outline-variant cursor-pointer group hover:text-primary-fixed">
+<span class="material-symbols-outlined group-hover:rotate-45 transition-transform duration-300">explore</span>
+</div>
+</div>
+<!-- Map Markers (Simulated) -->
+<div class="absolute top-[30%] left-[45%] z-20 group transform -translate-x-1/2 -translate-y-1/2 cursor-pointer">
+<div class="w-4 h-4 bg-primary-fixed border-[2px] border-background shadow-[0_0_15px_rgba(195,244,0,0.8)] relative animate-pulse">
+<div class="absolute -top-1 -left-1 w-6 h-6 border border-primary-fixed/50 animate-ping"></div>
+</div>
+<div class="absolute top-6 left-1/2 -translate-x-1/2 bg-surface border-2 border-outline-variant p-3 w-max opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none shadow-xl flex flex-col gap-1 z-30">
+<span class="font-headline-lg font-bold uppercase text-primary-fixed tracking-wide text-sm">OZONE RIDGE // SEC-A</span>
+<div class="flex items-center gap-2 text-on-surface-variant font-data-mono font-bold uppercase text-xs">
+<span class="w-2 h-2 bg-primary-fixed inline-block"></span> ACTIVE
+                 </div>
+</div>
+</div>
+<div class="absolute top-[60%] left-[25%] z-20 group transform -translate-x-1/2 -translate-y-1/2 cursor-pointer">
+<div class="w-4 h-4 bg-secondary-fixed border-[2px] border-background shadow-[0_0_15px_rgba(125,244,255,0.8)] relative"></div>
+<div class="absolute top-6 left-1/2 -translate-x-1/2 bg-surface border-2 border-outline-variant p-3 w-max opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none shadow-xl flex flex-col gap-1 z-30">
+<span class="font-headline-lg font-bold uppercase text-secondary-fixed tracking-wide text-sm">BLACK MESA POINT</span>
+<div class="flex items-center gap-2 text-on-surface-variant font-data-mono font-bold uppercase text-xs">
+<span class="w-2 h-2 bg-secondary-fixed inline-block"></span> STANDBY
+                 </div>
+</div>
+</div>
+<!-- Sector Overlay Panel (Left Side) -->
+<div class="absolute bottom-4 left-4 md:top-[120px] md:bottom-auto w-[360px] bg-surface border-2 border-outline-variant p-6 shadow-2xl z-30 hidden md:flex flex-col gap-6">
+<div class="flex flex-col gap-1 border-b border-outline-variant pb-2">
+<h3 class="text-xl font-headline-lg font-bold text-primary-fixed uppercase tracking-wide flex justify-between items-center">
+                    SECTOR // 07-X
+                    <span class="material-symbols-outlined text-primary-fixed text-[20px]">radar</span>
+</h3>
+<p class="font-data-mono font-bold text-on-surface-variant text-sm uppercase mt-2 tracking-wider">Telemetry Readout</p>
+</div>
+<ul class="flex flex-col gap-2 text-lg">
+<li class="flex justify-between items-center border-b border-outline-variant pb-2 pt-2">
+<span class="font-data-mono font-bold uppercase text-on-surface-variant text-sm tracking-wider">LATITUDE</span>
+<span class="font-data-mono font-bold text-on-surface">45.523062 N</span>
+</li>
+<li class="flex justify-between items-center border-b border-outline-variant pb-2 pt-2">
+<span class="font-data-mono font-bold uppercase text-on-surface-variant text-sm tracking-wider">LONGITUDE</span>
+<span class="font-data-mono font-bold text-on-surface">122.676482 W</span>
+</li>
+<li class="flex justify-between items-center border-b border-outline-variant pb-2 pt-2">
+<span class="font-data-mono font-bold uppercase text-on-surface-variant text-sm tracking-wider">ELEVATION</span>
+<span class="font-data-mono font-bold text-secondary-fixed">1,452 M MSL</span>
+</li>
+</ul>
+<div class="flex flex-col gap-2 mt-4">
+<div class="flex justify-between font-data-mono font-bold uppercase text-xs tracking-wider">
+<span class="text-on-surface-variant">SECTOR SCAN PROGRESS</span>
+<span class="text-primary-fixed">78%</span>
+</div>
+<div class="w-full h-3 border border-outline-variant flex gap-[2px] p-[1px] bg-background">
+<div class="h-full w-[10%] bg-primary-fixed"></div>
+<div class="h-full w-[10%] bg-primary-fixed"></div>
+<div class="h-full w-[10%] bg-primary-fixed"></div>
+<div class="h-full w-[10%] bg-primary-fixed"></div>
+<div class="h-full w-[10%] bg-primary-fixed"></div>
+<div class="h-full w-[10%] bg-primary-fixed"></div>
+<div class="h-full w-[10%] bg-primary-fixed"></div>
+<div class="h-full w-[8%] bg-primary-fixed/50 animate-pulse"></div>
+<div class="h-full w-[10%] bg-transparent"></div>
+<div class="h-full w-[12%] bg-transparent"></div>
+</div>
+</div>
+<button class="mt-4 w-full text-center bg-primary-fixed text-black font-headline-lg font-bold uppercase py-3 px-4 hover:bg-white transition-colors border-2 border-primary-fixed text-lg tracking-wider shadow-[0_0_15px_rgba(195,244,0,0.3)] hover:shadow-[0_0_25px_rgba(195,244,0,0.5)]">
+                INITIALIZE SWEEP
+            </button>
+</div>
+</div>
+</div></main><footer class="w-full bg-surface border-t-2 border-outline-variant mt-12 py-6"><div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6"><div class="font-data-mono font-bold uppercase text-on-surface-variant tracking-wider text-sm">© 2024 CAMPRUNNERS // CORE_SYSTEM_V.2.4</div><div class="flex gap-6"><span class="font-data-mono font-bold uppercase text-on-surface-variant tracking-wider text-sm">LAT: 45.523062</span><span class="font-data-mono font-bold uppercase text-on-surface-variant tracking-wider text-sm">LON: -122.676482</span></div></div></footer>
+
+</body></html>

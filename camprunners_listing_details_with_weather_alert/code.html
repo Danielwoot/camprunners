@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en" style=""><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Camprunners - Ozone Ridge</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&amp;family=Rajdhani:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#a3e635",
+            "background-light": "#e5e7eb",
+            "background-dark": "#050a0a",
+            "grid-line-light": "rgba(0, 0, 0, 0.05)",
+            "grid-line-dark": "rgba(12, 59, 46, 0.5)",
+            "card-light": "#ffffff",
+            "card-dark": "#0a1212",
+          },
+          fontFamily: {
+            display: ['Orbitron', 'sans-serif'],
+            body: ['Rajdhani', 'sans-serif'],
+          },
+          borderRadius: {
+            DEFAULT: "0px",
+          },
+          backgroundImage: {
+            'grid-pattern-dark': 'linear-gradient(to right, rgba(20, 83, 74, 0.3) 1px, transparent 1px), linear-gradient(to bottom, rgba(20, 83, 74, 0.3) 1px, transparent 1px)',
+            'grid-pattern-light': 'linear-gradient(to right, rgba(0, 0, 0, 0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 1px, transparent 1px)',
+          }
+        },
+      },
+    };
+  </script>
+<style>
+    body {
+      background-size: 30px 30px;
+    }
+  </style>
+<link class="" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/></head>
+<body class="bg-background-light dark:bg-background-dark bg-grid-pattern-light dark:bg-grid-pattern-dark min-h-screen text-gray-900 dark:text-gray-100 font-body p-6 md:p-12">
+<header class="mb-12 text-center md:text-left border-b-2 border-primary pb-4 flex flex-col md:flex-row justify-between items-end gap-6 md:gap-0">
+<div>
+<h1 class="text-4xl md:text-6xl font-display font-black text-primary tracking-widest uppercase" style="text-shadow: 2px 2px 0px rgba(0,0,0,0.5);">
+      Camprunners
+    </h1>
+<div class="h-1 w-full max-w-md bg-gradient-to-r from-cyan-500 to-primary mt-2"></div>
+</div>
+<nav class="w-full md:w-auto flex flex-wrap justify-center md:justify-end gap-4 md:gap-8 font-display font-bold uppercase tracking-wide"><a class="text-primary hover:text-white transition-colors border-b border-primary pb-1" href="#">Home</a>
+<a class="text-gray-400 hover:text-white transition-colors pb-1" href="#">Map</a>
+<a class="text-gray-400 hover:text-white transition-colors pb-1" href="#">Listings</a></nav>
+</header>
+<main class="max-w-7xl mx-auto">
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<div class="lg:col-span-2 space-y-8">
+<div class="bg-card-light dark:bg-card-dark border-2 border-gray-300 dark:border-gray-800 p-2 relative group">
+<div class="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-primary opacity-100"></div>
+<div class="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-primary opacity-100"></div>
+<div class="aspect-video bg-gray-800 relative overflow-hidden flex items-center justify-center">
+<span class="font-display text-gray-600 text-xl tracking-widest">[ VISUAL DATA UNAVAILABLE ]</span>
+<div class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1504280390224-4f9b889396fc?q=80&amp;w=2070&amp;auto=format&amp;fit=crop')] bg-cover bg-center opacity-40 mix-blend-luminosity"></div>
+</div>
+</div>
+<div class="flex items-start md:items-center gap-4 bg-red-950/20 border-2 border-red-500/30 p-4 mb-6 shadow-md relative overflow-hidden group hover:border-red-500/50 transition-colors">
+<div class="absolute -left-[1px] top-4 bottom-4 w-[3px] bg-red-500/50 group-hover:bg-red-500 transition-colors shadow-[0_0_10px_rgba(239,68,68,0.8)]"></div>
+<div class="text-red-500 flex items-center justify-center shrink-0 mt-1 md:mt-0 pl-2">
+<span class="material-symbols-outlined text-3xl" style="font-variation-settings: 'FILL' 1;">warning</span>
+</div>
+<div class="flex flex-col flex-1">
+<p class="text-red-500 font-display font-bold text-sm uppercase tracking-widest mb-1">Severe Weather Alert</p>
+<p class="text-red-200 font-body text-lg">High winds and low visibility detected on active routes above 8,000ft. Proceed with extreme caution. Micro-spikes recommended.</p>
+</div>
+<button class="shrink-0 text-gray-500 hover:text-red-500 transition-colors self-start md:self-center">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div><div class="grid grid-cols-3 gap-4 mb-8">
+<!-- Temp Tile -->
+<div class="flex flex-col gap-1 p-4 bg-card-light dark:bg-card-dark border-2 border-gray-300 dark:border-gray-800 relative group">
+<div class="flex items-center gap-2 border-b border-gray-800 pb-1 mb-1"><span class="material-symbols-outlined text-primary opacity-40 text-lg">thermometer</span>
+<p class="text-gray-500 font-mono text-[10px] uppercase font-bold tracking-widest">TEMP</p>
+</div>
+<div class="flex items-baseline gap-1">
+<p class="text-white font-display font-bold text-2xl">42°</p>
+<p class="text-cyan-500 font-mono text-[10px] tracking-widest">F</p>
+</div>
+</div>
+<!-- Wind Tile -->
+<div class="flex flex-col gap-1 p-4 bg-card-light dark:bg-card-dark border-2 border-gray-300 dark:border-gray-800 relative group">
+<div class="flex items-center gap-2 border-b border-gray-800 pb-1 mb-1"><span class="material-symbols-outlined text-primary opacity-40 text-lg">air</span>
+<p class="text-gray-500 font-mono text-[10px] uppercase font-bold tracking-widest">WIND</p>
+</div>
+<div class="flex items-baseline gap-1">
+<p class="text-white font-display font-bold text-2xl">18</p>
+<p class="text-cyan-500 font-mono text-[10px] tracking-widest">MPH</p>
+</div>
+</div>
+<!-- Precip Tile -->
+<div class="flex flex-col gap-1 p-4 bg-card-light dark:bg-card-dark border-2 border-gray-300 dark:border-gray-800 relative group">
+<div class="flex items-center gap-2 border-b border-gray-800 pb-1 mb-1"><span class="material-symbols-outlined text-primary opacity-40 text-lg">water_drop</span>
+<p class="text-gray-500 font-mono text-[10px] uppercase font-bold tracking-widest">PRECIP</p>
+</div>
+<div class="flex items-baseline gap-1">
+<p class="text-white font-display font-bold text-2xl">65</p>
+<p class="text-cyan-500 font-mono text-[10px] tracking-widest">%</p>
+</div>
+</div>
+</div><div class="bg-card-light dark:bg-card-dark border-2 border-gray-300 dark:border-gray-800 p-6 relative">
+<h3 class="text-xl font-display font-bold text-primary mb-4 uppercase tracking-wide border-b border-gray-800 pb-2">Sector Intel</h3>
+<ul class="grid grid-cols-1 md:grid-cols-2 gap-4 text-lg">
+<li class="flex items-center space-x-2">
+<span class="text-primary">►</span>
+<span class="">Potable Water Synthesis Access</span>
+</li>
+<li class="flex items-center space-x-2">
+<span class="text-primary">►</span>
+<span class="">Regulated Thermal Nodes (Fire Pits)</span>
+</li>
+<li class="flex items-center space-x-2">
+<span class="text-primary">►</span>
+<span class="">Low-Latency Cellular Uplink</span>
+</li>
+<li class="flex items-center space-x-2">
+<span class="text-primary">►</span>
+<span class="">Automated Waste Processing</span>
+</li>
+</ul>
+</div>
+</div>
+<div class="space-y-8">
+<div class="bg-card-light dark:bg-card-dark border-2 border-gray-300 dark:border-gray-800 p-6 flex flex-col relative h-full">
+<div class="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-primary"></div>
+<h2 class="text-4xl font-display font-black text-gray-800 dark:text-gray-200 mb-6 uppercase tracking-widest leading-none">
+        Ozone<br/>Ridge
+      </h2>
+<div class="space-y-4 mb-8 flex-grow">
+<div class="flex justify-between border-b border-gray-800 pb-2">
+<span class="text-gray-500 uppercase font-bold text-sm tracking-wider">Elevation</span>
+<span class="text-gray-200 font-mono">2,450m</span>
+</div>
+<div class="flex justify-between border-b border-gray-800 pb-2">
+<span class="text-gray-500 uppercase font-bold text-sm tracking-wider">Terrain</span>
+<span class="text-gray-200 font-mono">Rocky / Alpine</span>
+</div>
+<div class="flex justify-between border-b border-gray-800 pb-2">
+<span class="text-gray-500 uppercase font-bold text-sm tracking-wider">Status</span>
+<span class="text-primary font-mono animate-pulse">Online</span>
+</div>
+</div>
+<div class="mt-auto">
+<p class="text-lg font-semibold text-gray-600 dark:text-gray-400 mb-4">
+          Base Allocation: <span class="text-primary font-bold text-3xl block mt-1">$32.50 <span class="text-sm text-gray-500 font-normal">/ cycle</span></span>
+</p>
+<a class="inline-block w-full text-center bg-primary text-black font-display font-bold uppercase py-4 px-4 hover:bg-white hover:text-black transition-colors border-2 border-primary text-lg tracking-wider shadow-[0_0_15px_rgba(163,230,53,0.3)] hover:shadow-[0_0_25px_rgba(163,230,53,0.5)]" href="#">
+          Initiate Uplink to Site
+        </a>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

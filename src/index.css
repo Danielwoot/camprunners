@@ -1,0 +1,151 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700;800&family=Space+Grotesk:wght@600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Rajdhani", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-space: "Space Grotesk", sans-serif;
+  --font-orbitron: "Orbitron", sans-serif;
+
+  --color-cyber-yellow: #fcee0a;
+  --color-cyber-blue: #00f0ff;
+  --color-cyber-red: #ff003c;
+  --color-cyber-dark: #090909;
+  --color-cyber-gray: #1a1a1a;
+  --color-cyber-lime: #a3e635;
+
+  /* Portfolio / Ghostrunners Palette */
+  --color-obsidian-deep: #050505;
+  --color-neon-blue: #00f0ff;
+  --color-neon-magenta: #ff003c;
+  --color-matrix-green: #00ff41;
+  --color-charcoal-surface: #121212;
+  --color-surface-container: #201f1f;
+  --color-surface-container-high: #2a2a2a;
+  --color-on-surface-variant: #ccc7ab;
+  --color-on-surface: #e5e2e1;
+}
+
+body {
+  background-color: var(--color-obsidian-deep);
+  color: var(--color-on-surface);
+  font-family: var(--font-mono);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #050505;
+}
+::-webkit-scrollbar-thumb {
+  background: #00f0ff33;
+  border-radius: 0px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #00f0ff88;
+}
+
+/* Glitch Borders & Chamfered Shapes */
+.glitch-border {
+  position: relative;
+}
+
+.glitch-border::before {
+  content: '';
+  position: absolute;
+  top: -2px; left: -2px; right: -2px; bottom: -2px;
+  background: linear-gradient(45deg, var(--color-cyber-red), var(--color-cyber-blue), var(--color-cyber-yellow));
+  z-index: -1;
+  opacity: 0.5;
+}
+
+.cyber-btn {
+  clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);
+  position: relative;
+}
+
+.cyber-btn::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 15px;
+  height: 15px;
+  background-color: var(--color-cyber-dark);
+}
+
+.cyber-input-wrap {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%);
+}
+
+.cyber-panel {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 30px), calc(100% - 30px) 100%, 0 100%);
+}
+
+.chamfered-card {
+  clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
+}
+
+.chamfered-btn {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
+}
+
+.neon-shadow-blue {
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.15), inset 0 0 15px rgba(0, 240, 255, 0.1);
+}
+
+.neon-shadow-yellow {
+  box-shadow: 0 0 15px rgba(252, 238, 10, 0.2), inset 0 0 15px rgba(252, 238, 10, 0.1);
+}
+
+/* Animations */
+@keyframes glitch-skew {
+  0%, 90% { transform: skew(0deg); }
+  92% { transform: skew(4deg); }
+  94% { transform: skew(-4deg); }
+  96% { transform: skew(2deg); }
+  98% { transform: skew(-2deg); }
+  100% { transform: skew(0deg); }
+}
+
+@keyframes glitch-color {
+  0%, 90% { text-shadow: none; }
+  92% { text-shadow: 2px 2px var(--color-cyber-red), -2px -2px var(--color-cyber-blue); }
+  94% { text-shadow: -2px 2px var(--color-cyber-red), 2px -2px var(--color-cyber-blue); }
+  96% { text-shadow: none; }
+}
+
+.glitch-text-1 {
+  animation: glitch-skew 4s infinite, glitch-color 4s infinite;
+}
+
+@keyframes glitch {
+  0% { transform: translate(0); text-shadow: -2px 0 #00f0ff, 2px 0 #ff00ff; color: #00f0ff; }
+  2% { transform: translate(-3px, 2px); text-shadow: 3px 0 #fcee0a; color: #fcee0a; }
+  4% { transform: translate(3px, -2px); text-shadow: -3px 0 #ff00ff; color: #ff00ff; }
+  6% { transform: translate(0); text-shadow: -2px 0 #00f0ff, 2px 0 #ff00ff; color: #00f0ff; }
+  95% { transform: translate(0); text-shadow: -2px 0 #00f0ff, 2px 0 #ff00ff; color: #00f0ff; }
+  97% { transform: translate(-2px, -1px); text-shadow: 2px 0 #fcee0a; color: #fcee0a; }
+  99% { transform: translate(2px, 1px); text-shadow: -2px 0 #ff00ff; color: #ff00ff; }
+  100% { transform: translate(0); text-shadow: -2px 0 #00f0ff, 2px 0 #ff00ff; color: #00f0ff; }
+}
+
+.edgerunner-glitch {
+  position: relative;
+  display: inline-block;
+  animation: glitch 4s infinite linear alternate-reverse;
+}
+
+@keyframes scanline-scroll {
+  0% { background-position: 0 0; }
+  100% { background-position: 0 100vh; }
+}
+
+.scanline {
+  background: linear-gradient(to bottom, rgba(0, 240, 255, 0), rgba(0, 240, 255, 0.08) 50%, rgba(0, 240, 255, 0) 100%);
+  background-size: 100% 4px;
+  animation: scanline-scroll 10s linear infinite;
+}
