@@ -504,6 +504,18 @@ function fetchHipcampLandDetails(landUrl: string): Promise<any> {
             amenities.add('Trash bins');
           }
 
+          // Extract all authentic high-resolution land photos from Cloudinary
+          const photoIds = new Set<string>();
+          const photoRegex = /land-photos\/([a-zA-Z0-9_-]+)\.(?:jpg|jpeg|png|webp)/gi;
+          let photoMatch;
+          while ((photoMatch = photoRegex.exec(b)) !== null) {
+            photoIds.add(photoMatch[1]);
+          }
+
+          const highResPhotos = Array.from(photoIds).map(id => 
+            `https://hipcamp-res.cloudinary.com/image/upload/c_fill,f_auto,g_auto,h_800,q_80,w_1200/v1/land-photos/${id}.jpg`
+          );
+
           const pageProps = data.props?.pageProps;
           const primaryId = pageProps?.id;
           const maskedId = pageProps?.maskedId;
@@ -550,14 +562,18 @@ function fetchHipcampLandDetails(landUrl: string): Promise<any> {
 
                   const result = {
                     amenities: Array.from(amenities),
-                    description: fullText
+                    description: fullText,
+                    photos: highResPhotos,
+                    image: highResPhotos[0] || null
                   };
                   hipcampLandCache.set(landUrl, result);
                   resolve(result);
                 } catch {
                   const result = {
                     amenities: Array.from(amenities),
-                    description: fallbackMeta
+                    description: fallbackMeta,
+                    photos: highResPhotos,
+                    image: highResPhotos[0] || null
                   };
                   hipcampLandCache.set(landUrl, result);
                   resolve(result);
@@ -568,7 +584,9 @@ function fetchHipcampLandDetails(landUrl: string): Promise<any> {
             camperReq.on('error', () => {
               const result = {
                 amenities: Array.from(amenities),
-                description: fallbackMeta
+                description: fallbackMeta,
+                photos: highResPhotos,
+                image: highResPhotos[0] || null
               };
               hipcampLandCache.set(landUrl, result);
               resolve(result);
@@ -581,7 +599,9 @@ function fetchHipcampLandDetails(landUrl: string): Promise<any> {
 
           const result = {
             amenities: Array.from(amenities),
-            description: fallbackMeta
+            description: fallbackMeta,
+            photos: highResPhotos,
+            image: highResPhotos[0] || null
           };
 
           hipcampLandCache.set(landUrl, result);
@@ -589,7 +609,9 @@ function fetchHipcampLandDetails(landUrl: string): Promise<any> {
         } catch (e) {
           resolve({
             amenities: ['Toilets', 'Potable water', 'Pet-friendly', 'Picnic table', 'Trash bins'],
-            description: null
+            description: null,
+            photos: [],
+            image: null
           });
         }
       });
