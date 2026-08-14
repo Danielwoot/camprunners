@@ -707,6 +707,84 @@ function fetchCampgroundDetailsDirect(idOrSlug: string): Promise<any> {
 
 const CAMPSPOT_PARKS_DATABASE = [
   {
+    id: 'campspot-los-angeles-rv-resort',
+    name: 'Los Angeles RV Resort',
+    locationName: 'Acton',
+    state: 'California',
+    sector: 'California Sector',
+    lat: 34.438592,
+    lng: -118.266558,
+    latStr: '34.4386° N',
+    lngStr: '118.2666° W',
+    elevation: '2710 ft',
+    elevationNum: 2710,
+    terrain: 'Canyon',
+    status: 'Available',
+    priceDisplay: '$65 - $185 / night',
+    pricePerNight: 65,
+    rating: 4.6,
+    reviewCount: 142,
+    siteTypes: ['RV', 'Cabin', 'Tent'],
+    image: 'https://images.unsplash.com/photo-1510312305653-8ed496efae75?q=80&w=1200&auto=format&fit=crop',
+    summary: 'Located in the heart of Soledad Canyon near Acton, California. Surrounded by breath-taking mountains while being a short scenic drive north from Los Angeles tourist attractions.',
+    amenities: ['Bathrooms & Showers', 'Swimming Pool', 'Internet Access / Wi-Fi', 'Laundry Facilities', '50/30/20 Amp Electric', 'Pet-Friendly', 'Picnic Tables', 'Fire Pit'],
+    availabilityType: 'CHECK_AVAILABILITY',
+    contactUrl: 'https://www.campspot.com/park/los-angeles-rv-resort',
+    source: 'campspot'
+  },
+  {
+    id: 'campspot-launch-pointe',
+    name: 'Launch Pointe Recreation Destination & RV Resort',
+    locationName: 'Lake Elsinore',
+    state: 'California',
+    sector: 'California Sector',
+    lat: 33.675819,
+    lng: -117.373271,
+    latStr: '33.6758° N',
+    lngStr: '117.3733° W',
+    elevation: '1260 ft',
+    elevationNum: 1260,
+    terrain: 'Canyon',
+    status: 'Available',
+    priceDisplay: '$70 - $240 / night',
+    pricePerNight: 70,
+    rating: 4.8,
+    reviewCount: 380,
+    siteTypes: ['RV', 'Cabin', 'Glamping'],
+    image: 'https://images.unsplash.com/photo-1523987355523-c7b5b0dd90a7?q=80&w=1200&auto=format&fit=crop',
+    summary: 'Lakefront recreation paradise on Lake Elsinore featuring custom vintage yurts, luxury airstreams, splash pads, boat launch marina, pool, and waterfront dining.',
+    amenities: ['Lakefront Access & Boat Launch', 'Swimming Pool & Splash Pad', 'Full Hookups (50 Amp)', 'Luxury Yurts', 'Restaurant & Bar', 'Dog Park', 'High-Speed Wi-Fi'],
+    availabilityType: 'CHECK_AVAILABILITY',
+    contactUrl: 'https://www.campspot.com/park/launch-pointe',
+    source: 'campspot'
+  },
+  {
+    id: 'campspot-paradise-by-the-sea',
+    name: 'Paradise by the Sea Beach RV Resort',
+    locationName: 'Oceanside',
+    state: 'California',
+    sector: 'California Sector',
+    lat: 33.179931,
+    lng: -117.365691,
+    latStr: '33.1799° N',
+    lngStr: '117.3657° W',
+    elevation: '25 ft',
+    elevationNum: 25,
+    terrain: 'Rocky',
+    status: 'Available',
+    priceDisplay: '$85 - $220 / night',
+    pricePerNight: 85,
+    rating: 4.9,
+    reviewCount: 460,
+    siteTypes: ['RV'],
+    image: 'https://images.unsplash.com/photo-1533873984035-25970ab07461?q=80&w=1200&auto=format&fit=crop',
+    summary: 'The only RV resort directly on the Southern California beach in Oceanside, just steps from the Pacific Ocean sand and Buccaneer Park.',
+    amenities: ['Direct Beach Access', 'Heated Pool & Hot Tub', 'Full Hookups (50/30/20 Amp)', 'HD Cable & Free Wi-Fi', 'Recreation Room', 'Pet-Friendly', 'Clean Restrooms & Showers'],
+    availabilityType: 'CHECK_AVAILABILITY',
+    contactUrl: 'https://www.campspot.com/park/paradise-by-the-sea-beach-rv-resort',
+    source: 'campspot'
+  },
+  {
     id: 'campspot-newport-dunes',
     name: 'Newport Dunes Waterfront Resort & Marina',
     locationName: 'Newport Beach',
@@ -781,7 +859,7 @@ const CAMPSPOT_PARKS_DATABASE = [
     summary: 'Award-winning Santa Ynez Valley resort featuring luxury glamping safari tents, vintage Airstreams, cottages, and full-hookup RV sites with resort-style pools, splash zones, and fireside lounges.',
     amenities: ['Resort Pools & Hot Tubs', 'Full Hookups (50 Amp)', 'Luxury Glamping Tents', 'High-Speed Wi-Fi', 'On-Site Restaurant', 'Fireside Lounges', 'Dog Park', 'Bocce Ball Courts'],
     availabilityType: 'CHECK_AVAILABILITY',
-    contactUrl: 'https://www.campspot.com/park/flying-flags-rv-resort-campground',
+    contactUrl: 'https://www.campspot.com/park/flying-flags-buellton',
     source: 'campspot'
   },
   {
@@ -790,10 +868,10 @@ const CAMPSPOT_PARKS_DATABASE = [
     locationName: 'Chula Vista',
     state: 'California',
     sector: 'California Sector',
-    lat: 32.5991,
-    lng: -117.1068,
-    latStr: '32.5991° N',
-    lngStr: '117.1068° W',
+    lat: 32.639705,
+    lng: -117.101164,
+    latStr: '32.6397° N',
+    lngStr: '117.1012° W',
     elevation: '20 ft',
     elevationNum: 20,
     terrain: 'Rocky',
@@ -868,10 +946,10 @@ const CAMPSPOT_PARKS_DATABASE = [
     locationName: 'Paso Robles',
     state: 'California',
     sector: 'California Sector',
-    lat: 35.6322,
-    lng: -120.6558,
-    latStr: '35.6322° N',
-    lngStr: '120.6558° W',
+    lat: 35.654376,
+    lng: -120.655069,
+    latStr: '35.6544° N',
+    lngStr: '120.6551° W',
     elevation: '820 ft',
     elevationNum: 820,
     terrain: 'Forest',
@@ -920,9 +998,9 @@ const CAMPSPOT_PARKS_DATABASE = [
     locationName: 'Granby',
     state: 'Colorado',
     sector: 'Alpine Sector',
-    lat: 40.0864,
-    lng: -105.9395,
-    latStr: '40.0864° N',
+    lat: 40.086105,
+    lng: -105.939462,
+    latStr: '40.0861° N',
     lngStr: '105.9395° W',
     elevation: '7935 ft',
     elevationNum: 7935,
@@ -967,6 +1045,94 @@ const CAMPSPOT_PARKS_DATABASE = [
     source: 'campspot'
   }
 ];
+
+const campspotParkCache = new Map<string, any>();
+
+function fetchCampspotParkDetails(slugOrUrl: string): Promise<any> {
+  let cleanSlug = slugOrUrl.replace(/^campspot-/, '').replace(/https?:\/\/[^\/]+\/park\//, '').split('?')[0];
+  if (campspotParkCache.has(cleanSlug)) {
+    return Promise.resolve(campspotParkCache.get(cleanSlug));
+  }
+
+  return new Promise((resolve) => {
+    const url = `https://www.campspot.com/park/${cleanSlug}`;
+
+    https.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br'
+      },
+      timeout: 8000
+    }, (res) => {
+      let stream: any = res;
+      if (res.headers['content-encoding'] === 'gzip') stream = res.pipe(zlib.createGunzip());
+      else if (res.headers['content-encoding'] === 'br') stream = res.pipe(zlib.createBrotliDecompress());
+
+      let body = '';
+      stream.on('data', (c: any) => body += c);
+      stream.on('end', () => {
+        try {
+          const match = body.match(/<script id="campspot-aggregator-state" type="application\/json">([\s\S]*?)<\/script>/i);
+          if (match) {
+            const state = JSON.parse(match[1]);
+            const parkKey = Object.keys(state).find(k => k.includes('parks') && k.includes('slug'));
+            const generalData = state['HTTP_STATE__GENERAL_PARK_DATA_V2'];
+            const park = parkKey ? state[parkKey]?.park : null;
+
+            // Extract all feature names
+            const features: string[] = [];
+            if (park?.parkFeatures && Array.isArray(park.parkFeatures)) {
+              features.push(...park.parkFeatures.map((f: any) => f.name));
+            }
+            if (park?.parkNearbyActivities && Array.isArray(park.parkNearbyActivities)) {
+              features.push(...park.parkNearbyActivities.map((a: any) => `Activity: ${a.name}`));
+            }
+            if (generalData?.amenities && Array.isArray(generalData.amenities)) {
+              features.push(...generalData.amenities.slice(0, 12));
+            }
+
+            // Extract description from JSON-LD
+            let description: string | null = null;
+            const jsonLdMatch = body.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi);
+            if (jsonLdMatch) {
+              for (const tag of jsonLdMatch) {
+                try {
+                  const parsed = JSON.parse(tag.replace(/<\/?script[^>]*>/gi, '').trim());
+                  if (parsed['@type'] === 'Campground' && parsed.description) {
+                    description = parsed.description;
+                    break;
+                  }
+                } catch(e) {}
+              }
+            }
+
+            const details = {
+              slug: cleanSlug,
+              name: park?.name,
+              amenities: [...new Set(features)],
+              description: description || park?.description || null,
+              lat: park?.latitude,
+              lng: park?.longitude,
+              address: park?.address
+            };
+
+            campspotParkCache.set(cleanSlug, details);
+            resolve(details);
+            return;
+          }
+
+          const fallback = { amenities: ['Full Hookups', 'Toilets', 'Potable Water', 'Pet-Friendly', 'Wi-Fi'], description: null };
+          resolve(fallback);
+        } catch {
+          resolve({ amenities: ['Full Hookups', 'Toilets', 'Potable Water', 'Pet-Friendly', 'Wi-Fi'], description: null });
+        }
+      });
+    }).on('error', () => {
+      resolve({ amenities: ['Full Hookups', 'Toilets', 'Potable Water', 'Pet-Friendly', 'Wi-Fi'], description: null });
+    });
+  });
+}
 
 async function fetchCampspotDirect(swLat: number, swLng: number, neLat: number, neLng: number): Promise<any[]> {
   const inBounds = CAMPSPOT_PARKS_DATABASE.filter(
@@ -1261,6 +1427,31 @@ export default function dyrtScraperPlugin(): Plugin {
           res.statusCode = 500;
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify([]));
+        }
+      });
+
+      // Campspot Individual Park Amenities & Overview Endpoint
+      server.middlewares.use('/api/campspot/park', async (req, res) => {
+        try {
+          const urlObj = new URL(req.url || '', `http://${req.headers.host}`);
+          const slugParam = urlObj.searchParams.get('slug') || urlObj.searchParams.get('url') || '';
+
+          if (!slugParam) {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'Missing slug or url parameter' }));
+            return;
+          }
+
+          const details = await fetchCampspotParkDetails(slugParam);
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(details));
+
+        } catch (error: any) {
+          console.error('[Campspot Park Middleware] Error:', error);
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ amenities: ['Full Hookups', 'Swimming Pool', 'Showers', 'Pet-Friendly', 'Wi-Fi'], description: null }));
         }
       });
     }

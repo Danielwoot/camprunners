@@ -88,6 +88,17 @@ export async function fetchCampgroundAmenities(
   contactUrl?: string
 ): Promise<CampgroundSourceDetails | null> {
   try {
+    if (source === 'campspot' || String(locationIdOrSlug).startsWith('campspot-')) {
+      const slugParam = contactUrl || String(locationIdOrSlug);
+      const response = await fetch(`/api/campspot/park?slug=${encodeURIComponent(slugParam)}`);
+      if (!response.ok) return null;
+      const data = await response.json();
+      if (data && Array.isArray(data.amenities) && data.amenities.length > 0) {
+        return data;
+      }
+      return null;
+    }
+
     if (source === 'hipcamp' || String(locationIdOrSlug).startsWith('hipcamp-')) {
       const urlParam = contactUrl || String(locationIdOrSlug);
       const response = await fetch(`/api/hipcamp/land?url=${encodeURIComponent(urlParam)}`);
