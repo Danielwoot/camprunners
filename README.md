@@ -23,6 +23,42 @@
 
 ---
 
+## 📸 Interface Showcase & Feature Demos
+
+<div align="center">
+
+### 🗺️ Live NOAA NEXRAD Doppler Weather Radar & Map Explorer
+*Interactive Leaflet dark HUD canvas streaming real-time precipitation radar overlays and tactical pulse beacons.*
+
+<img src="docs/images/interactive-map-radar.png" alt="Camprunners Interactive Map with NOAA NEXRAD Doppler Radar" width="100%" style="border-radius: 8px; border: 1px solid #00f0ff; box-shadow: 0 0 20px rgba(0,240,255,0.2);" />
+
+</div>
+
+<br />
+
+<div align="center">
+
+### 🤖 Mason A.I. Advisor & 🛰️ GPS Atmospheric Telemetry
+
+<table>
+  <tr>
+    <td width="42%" valign="top">
+      <h4 align="center">🤖 Mason A.I. Advisor HUD</h4>
+      <img src="docs/images/mason-ai-advisor.png" alt="Mason A.I. Advisor Drawer with Tactical Recommendations" style="border-radius: 6px; border: 1px solid #a3e635;" />
+      <p align="center"><sub>Autonomous conversational advisor providing tactical rankings, match scores, and direct Leaflet map tool controls.</sub></p>
+    </td>
+    <td width="58%" valign="top">
+      <h4 align="center">🛰️ Real-Time Telemetry & NWS Hazard Feeds</h4>
+      <img src="docs/images/campsite-telemetry-detail.png" alt="Campsite Detail View with NWS Weather Alerts and Live Open-Meteo Telemetry" style="border-radius: 6px; border: 1px solid #00f0ff;" />
+      <p align="center"><sub>Live Open-Meteo GPS weather metrics, USGS DEM elevations, 7-day microclimate forecasts, and NWS active freeze & squall warnings.</sub></p>
+    </td>
+  </tr>
+</table>
+
+</div>
+
+---
+
 ## 📜 Origin & Backstory
 
 > *"Great ideas shouldn't be left behind in a classroom repository."*
@@ -35,10 +71,10 @@ Taking the concept into his own hands, Daniel built **Camprunners** from the gro
 
 ---
 
-## ⚡ Key Capabilities & Features
+## ⚡ Key Capabilities & Architecture
 
 ### 🧭 1. Interactive Map Explorer
-- **High-Precision Leaflet Engine**: Real-time bounding box queries that fetch and render authentic campgrounds as you pan and zoom.
+- **High-Precision Leaflet Engine**: Real-time bounding box queries that fetch and render authentic campgrounds dynamically as you pan and zoom.
 - **Viewport State Persistence**: Seamlessly preserves your exact coordinate position and zoom level when navigating between campsite details and the map.
 - **NOAA / IEM NEXRAD Base Reflectivity Radar**: Live Doppler precipitation weather radar overlay that functions smoothly across all zoom levels (0–19+).
 - **Default Yosemite Sector**: Automatically initializes centered over Yosemite National Park, California (`37.7456° N, 119.5936° W`).
@@ -55,7 +91,7 @@ Taking the concept into his own hands, Daniel built **Camprunners** from the gro
   - **Weather Radar Auto-Engagement**: Asking about rain, storms, or squalls automatically toggles the live NOAA NEXRAD precipitation radar.
   - **AI Target Reticle Beacons**: Renders spinning, glowing AI Target Reticles `[ 🎯 MASON AI PICK ]` on top recommended outposts on the map canvas.
   - **One-Click Target Lock**: Instantly swoops the camera into the chosen campsite at zoom level 13.
-- **Zero-Latency Fallback Engine**: Multi-dimensional tactical NLP heuristic engine ensures Mason functions reliably even without an internet connection.
+- **Zero-Latency Fallback Engine**: Multi-dimensional tactical NLP heuristic engine ensures Mason functions reliably even without an active internet connection.
 
 ### 🛰️ 4. Real-Time Atmospheric Telemetry & Hazard Feeds
 - **Open-Meteo GPS Microclimate Data**: Live core temperature, wind speeds, wind gusts, precipitation probability, humidity, and atmospheric pressure.
@@ -123,7 +159,7 @@ Taking the concept into his own hands, Daniel built **Camprunners** from the gro
 
 - All AI requests run through the backend proxy route (`/api/ai/mason-advisor`).
 - The `GROQ_API_KEY` is strictly held on the server side and is **never exposed to client browser bundles or network inspectors**.
-- `.env` and `.env.local` files are included in `.gitignore`.
+- `.env` and `.env.local` files are strictly included in `.gitignore`.
 
 ---
 
