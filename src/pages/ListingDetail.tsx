@@ -16,7 +16,28 @@ export default function ListingDetail() {
   const [isOverviewModalOpen, setIsOverviewModalOpen] = useState(false);
 
   const campsite = campsites.find((c) => c.id === id) || (selectedCampsite?.id === id ? selectedCampsite : null) || campsites[0];
-  const dyrtUrl = campsite.contactUrl || `https://thedyrt.com/search?q=${encodeURIComponent(campsite.name)}`;
+  const isCampspot = campsite.source === 'campspot';
+  const isHipcamp = campsite.source === 'hipcamp';
+
+  const bookingUrl = (campsite.contactUrl && campsite.contactUrl.startsWith('http'))
+    ? campsite.contactUrl
+    : isCampspot
+    ? `https://www.campspot.com/search?location=${encodeURIComponent(campsite.locationName + ', ' + campsite.state)}`
+    : isHipcamp
+    ? `https://www.hipcamp.com/en-US/search?q=${encodeURIComponent(campsite.name)}`
+    : `https://thedyrt.com/search?q=${encodeURIComponent(campsite.name)}`;
+
+  const bookingBtnClass = isCampspot
+    ? 'bg-[#10b981] hover:bg-[#059669] border-[#10b981] shadow-[0_0_15px_rgba(16,185,129,0.4)] text-black font-black'
+    : isHipcamp
+    ? 'bg-[#ff6b35] hover:bg-[#e0531c] border-[#ff6b35] shadow-[0_0_15px_rgba(255,107,53,0.4)] text-black font-black'
+    : 'bg-[#267865] hover:bg-[#349882] border-[#267865] shadow-[0_0_15px_rgba(38,120,101,0.4)] text-white';
+
+  const bookingBtnLabel = isCampspot
+    ? 'RESERVE ON CAMPSPOT'
+    : isHipcamp
+    ? 'BOOK ON HIPCAMP'
+    : 'SHOW ORIGINAL LISTING';
 
   const [imgSrc, setImgSrc] = useState(campsite.image);
   useEffect(() => {
@@ -321,12 +342,12 @@ export default function ListingDetail() {
 
             <div className="mt-8 space-y-3">
               <a
-                href={dyrtUrl}
+                href={bookingUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full bg-[#267865] hover:bg-[#349882] text-white font-['Orbitron'] font-bold uppercase py-4 px-4 transition-colors border-2 border-[#267865] text-sm tracking-wider shadow-[0_0_15px_rgba(38,120,101,0.4)] chamfered-btn flex items-center justify-center gap-2"
+                className={`w-full ${bookingBtnClass} font-['Orbitron'] font-bold uppercase py-4 px-4 transition-colors border-2 text-sm tracking-wider chamfered-btn flex items-center justify-center gap-2`}
               >
-                <span>SHOW ORIGINAL LISTING</span>
+                <span>{bookingBtnLabel}</span>
                 <span className="material-symbols-outlined text-base">open_in_new</span>
               </a>
               <Link

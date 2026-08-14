@@ -332,16 +332,19 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
         ? 'See original list'
         : site.priceDisplay;
 
+      const popupColor = isCampspot ? '#10b981' : isHipcamp ? '#ff6b35' : '#00f0ff';
+      const popupBadgeText = isCampspot ? 'CAMPSPOT' : isHipcamp ? 'HIPCAMP' : 'PUBLIC';
+
       const popupContent = `
-        <div style="background:#0c1212; color:#e5e2e1; font-family:sans-serif; padding:12px; border:1px solid ${isHipcamp ? '#ff6b35' : '#00f0ff'}; min-width:220px; border-radius:6px; box-shadow: 0 4px 16px rgba(0,0,0,0.8);">
+        <div style="background:#0c1212; color:#e5e2e1; font-family:sans-serif; padding:12px; border:1px solid ${popupColor}; min-width:220px; border-radius:6px; box-shadow: 0 4px 16px rgba(0,0,0,0.8);">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-            <span style="color:${isHipcamp ? '#ff6b35' : '#00f0ff'}; font-size:10px; font-weight:bold; text-transform:uppercase;">${site.locationName}, ${site.state}</span>
-            <span style="background:${isHipcamp ? '#ff6b35' : '#00f0ff'}; color:#000; font-size:9px; font-weight:900; padding:1px 4px; border-radius:2px;">${isHipcamp ? 'HIPCAMP' : 'PUBLIC'}</span>
+            <span style="color:${popupColor}; font-size:10px; font-weight:bold; text-transform:uppercase;">${site.locationName}, ${site.state}</span>
+            <span style="background:${popupColor}; color:#000; font-size:9px; font-weight:900; padding:1px 4px; border-radius:2px;">${popupBadgeText}</span>
           </div>
           <div style="color:#ffffff; font-size:14px; font-weight:bold; margin:4px 0 6px 0;">${site.name}</div>
           <div style="color:#a3e635; font-size:13px; font-weight:bold; margin-bottom:4px;">${popupPrice}</div>
           <div style="color:#ccc7ab; font-size:10px; margin-top:4px; margin-bottom:8px;">${site.siteTypes.join(', ')}</div>
-          <a href="/listings/${site.id}" style="display:inline-block; width:100%; text-align:center; background:#050505; color:${isHipcamp ? '#ff6b35' : '#00f0ff'}; border:1px solid ${isHipcamp ? '#ff6b35' : '#00f0ff'}; font-family:monospace; font-size:11px; font-weight:bold; padding:7px 0; text-transform:uppercase; text-decoration:none; border-radius:4px;">VIEW DETAILS ↗</a>
+          <a href="/listings/${site.id}" style="display:inline-block; width:100%; text-align:center; background:#050505; color:${popupColor}; border:1px solid ${popupColor}; font-family:monospace; font-size:11px; font-weight:bold; padding:7px 0; text-transform:uppercase; text-decoration:none; border-radius:4px;">VIEW DETAILS ↗</a>
         </div>
       `;
 
@@ -704,15 +707,33 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
 
       {/* Campsite Details Overlay Card (Bottom Left - Disappears on Empty Map Click) */}
       {activeSite && !isSidebarOpen && (
-        <div className="absolute bottom-6 left-6 z-30 bg-[#0c1212]/95 border-2 border-[#267865] p-5 max-w-md chamfered-card shadow-2xl backdrop-blur-md font-sans text-xs space-y-3">
+        <div className={`absolute bottom-6 left-6 z-30 bg-[#0c1212]/95 border-2 ${
+          activeSite.source === 'campspot'
+            ? 'border-[#10b981] shadow-[0_0_20px_rgba(16,185,129,0.3)]'
+            : activeSite.source === 'hipcamp'
+            ? 'border-[#ff6b35] shadow-[0_0_20px_rgba(255,107,53,0.3)]'
+            : 'border-[#267865] shadow-[0_0_20px_rgba(38,120,101,0.3)]'
+        } p-5 max-w-md chamfered-card backdrop-blur-md font-sans text-xs space-y-3`}>
           <div className="flex justify-between items-start border-b border-gray-800 pb-2">
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[#267865] font-mono text-[10px] font-bold uppercase block">{activeSite.locationName}, {activeSite.state}</span>
-                <span className={`font-mono text-[9px] font-black px-1.5 py-0.2 uppercase ${
-                  activeSite.source === 'hipcamp' ? 'bg-[#ff6b35] text-black' : 'bg-[#00f0ff] text-black'
+                <span className={`font-mono text-[10px] font-bold uppercase block ${
+                  activeSite.source === 'campspot'
+                    ? 'text-[#10b981]'
+                    : activeSite.source === 'hipcamp'
+                    ? 'text-[#ff6b35]'
+                    : 'text-[#00f0ff]'
                 }`}>
-                  {activeSite.source === 'hipcamp' ? 'HIPCAMP' : 'PUBLIC'}
+                  {activeSite.locationName}, {activeSite.state}
+                </span>
+                <span className={`font-mono text-[9px] font-black px-1.5 py-0.2 uppercase ${
+                  activeSite.source === 'campspot'
+                    ? 'bg-[#10b981] text-black'
+                    : activeSite.source === 'hipcamp'
+                    ? 'bg-[#ff6b35] text-black'
+                    : 'bg-[#00f0ff] text-black'
+                }`}>
+                  {activeSite.source === 'campspot' ? 'CAMPSPOT' : activeSite.source === 'hipcamp' ? 'HIPCAMP' : 'PUBLIC'}
                 </span>
               </div>
               <h3 className="font-['Space_Grotesk'] text-lg font-bold text-white leading-tight mt-0.5">{activeSite.name}</h3>
