@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DyrtCampsite } from '../data/dyrtCampsites';
+import { FuelStation } from '../services/fuelService';
+import { StateTransitAlert } from '../services/trafficService';
 import { queryMasonAdvisor, MasonAnalysisResult, MasonMapActions } from '../services/masonAIService';
 
 interface MasonAIAdvisorDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   visibleCampsites: DyrtCampsite[];
+  visibleFuelStations?: FuelStation[];
+  activeTransitAlerts?: StateTransitAlert[];
   onSelectCampsite: (site: DyrtCampsite) => void;
+  onSelectFuelStation?: (station: FuelStation) => void;
   onApplyMapActions?: (actions?: MasonMapActions, recommendedIds?: string[]) => void;
 }
 
@@ -15,7 +20,10 @@ export const MasonAIAdvisorDrawer: React.FC<MasonAIAdvisorDrawerProps> = ({
   isOpen,
   onClose,
   visibleCampsites = [],
+  visibleFuelStations = [],
+  activeTransitAlerts = [],
   onSelectCampsite,
+  onSelectFuelStation,
   onApplyMapActions
 }) => {
   const [userQuery, setUserQuery] = useState('');
@@ -23,6 +31,9 @@ export const MasonAIAdvisorDrawer: React.FC<MasonAIAdvisorDrawerProps> = ({
   const [analysisResult, setAnalysisResult] = useState<MasonAnalysisResult | null>(null);
 
   const presets = [
+    { label: '⛽ Nearest Diesel & Propane', query: 'Find nearest gas station with diesel, propane refill, and 24/7 store' },
+    { label: '🚥 Traffic Delays & Pass Closures', query: 'Check real-time traffic flow, mountain pass closures, and road delays' },
+    { label: '⚡ EV Fast Charger Near Campgrounds', query: 'Find campsites with high-speed EV chargers nearby' },
     { label: '🌌 Stargazing & Clear Skies', query: 'Dark skies, high altitude, clear weather, stargazing' },
     { label: '🐾 Pet-Friendly & Water', query: 'Pet-friendly with potable water and bathrooms' },
     { label: '🏔️ Alpine High Elevation', query: 'Alpine terrain, mountain views, secluded high altitude' },
@@ -33,7 +44,10 @@ export const MasonAIAdvisorDrawer: React.FC<MasonAIAdvisorDrawerProps> = ({
   const handleRunAnalysis = async (queryText: string) => {
     setIsAnalyzing(true);
     try {
-      const result = await queryMasonAdvisor(visibleCampsites, queryText);
+      const result = await queryMasonAdvisor(visibleCampsites, queryText, {
+        fuelStations: visibleFuelStations,
+        transitAlerts: activeTransitAlerts
+      });
       setAnalysisResult(result);
 
       if (onApplyMapActions && result) {
@@ -284,6 +298,142 @@ export const MasonAIAdvisorDrawer: React.FC<MasonAIAdvisorDrawerProps> = ({
                   );
                 })}
             </div>
+
+            {/* Recommended Fuel Stations & Travel Plazas (If Detected) */}
+            {Array.isArray(analysisResult.fuelRecommendations) && analysisResult.fuelRecommendations.length > 0 && (
+              <div className="space-y-3 pt-2">
+                <span className="font-mono text-[10px] text-[#f59e0b] font-bold uppercase tracking-widest flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm">local_gas_station</span>
+                  RECOMMENDED HIGHWAY REFUELING OUTPOSTS:
+                </span>
+
+                {analysisResult.fuelRecommendations.map((fRec, fIdx) => {
+                  const st = fRec.station;
+                  return (
+                    <div
+                      key={st.id || fIdx}
+                      className="bg-[#050505] border-2 border-[#f59e0b]/80 p-4 chamfered-card space-y-2.5 hover:shadow-[0_0_15px_rgba(245,158,11,0.25)] transition-all"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="bg-[#f59e0b] text-black text-[9px] font-black px-1.5 py-0.2 uppercase">
+                              {st.brand}
+                            </span>
+                            <span className="text-[10px] text-gray-400 font-mono">
+                              {st.highwayRef}
+                            </span>
+                          </div>
+                          <h4 className="font-['Space_Grotesk'] text-base font-bold text-white leading-tight mt-0.5">
+                            {st.name}
+                          </h4>
+                          <span className="text-[11px] text-gray-400 font-sans block">
+                            {st.address}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Mason's Fuel Verdict */}
+                      <div className="bg-[#141d1d] border-l-2 border-[#f59e0b] p-2 text-gray-200 text-xs font-mono">
+                        <span className="text-[#f59e0b] font-bold block text-[9px] uppercase">
+                          MASON REFUELING INTEL:
+                        </span>
+                        <p className="leading-snug text-gray-300 font-sans text-xs">
+                          {fRec.recommendationReason}
+                        </p>
+                      </div>
+
+                      {/* Capabilities Badges */}
+                      <div className="flex flex-wrap gap-1 font-mono text-[10px]">
+                        {st.hasDiesel && (
+                          <span className="bg-emerald-950/60 border border-emerald-500/50 text-emerald-300 px-1.5 py-0.2">
+                            ✓ DIESEL
+                          </span>
+                        )}
+                        {st.hasPropane && (
+                          <span className="bg-amber-950/60 border border-amber-500/50 text-amber-300 px-1.5 py-0.2">
+                            ✓ PROPANE REFILL
+                          </span>
+                        )}
+                        {st.hasEVCharging && (
+                          <span className="bg-cyan-950/60 border border-cyan-500/50 text-cyan-300 px-1.5 py-0.2">
+                            ✓ EV SUPERCHARGER
+                          </span>
+                        )}
+                        {st.isOpen24Hours && (
+                          <span className="bg-blue-950/60 border border-blue-500/50 text-blue-300 px-1.5 py-0.2">
+                            ✓ 24/7 OPEN
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-xs">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onSelectFuelStation) onSelectFuelStation(st);
+                          }}
+                          className="bg-[#141d1d] hover:bg-[#1e2c2c] border border-[#f59e0b]/60 text-[#f59e0b] font-bold py-2 chamfered-btn uppercase flex items-center justify-center gap-1 transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-sm">my_location</span>
+                          <span>VIEW OUTPOST</span>
+                        </button>
+                        <a
+                          href={`https://www.google.com/maps/dir/?api=1&destination=${st.lat},${st.lng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-[#f59e0b] hover:bg-[#d97706] text-black font-bold py-2 chamfered-btn uppercase flex items-center justify-center gap-1 text-center transition-colors"
+                        >
+                          <span>NAVIGATE</span>
+                          <span className="material-symbols-outlined text-xs">directions_car</span>
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Active Transit & Road Incidents (If Detected) */}
+            {Array.isArray(analysisResult.transitAlerts) && analysisResult.transitAlerts.length > 0 && (
+              <div className="space-y-3 pt-2">
+                <span className="font-mono text-[10px] text-[#ef4444] font-bold uppercase tracking-widest flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm">traffic</span>
+                  ACTIVE HIGHWAY TRANSIT ADVISORIES:
+                </span>
+
+                {analysisResult.transitAlerts.map((tRec, tIdx) => {
+                  const alert = tRec.alert;
+                  return (
+                    <div
+                      key={alert.id || tIdx}
+                      className="bg-[#050505] border-2 border-[#ef4444]/80 p-3.5 chamfered-card space-y-2"
+                    >
+                      <div className="flex justify-between items-center border-b border-gray-800 pb-1.5">
+                        <span className="font-mono text-[10px] font-bold text-[#ef4444] uppercase">
+                          {alert.agency} · {alert.highway}
+                        </span>
+                        <span className="bg-[#ef4444] text-black text-[9px] font-black px-1.5 py-0.2 uppercase">
+                          {alert.alertType.replace('_', ' ')}
+                        </span>
+                      </div>
+                      <div className="font-mono text-xs text-[#fcee0a] font-bold">
+                        ⏱️ {alert.delayText}
+                      </div>
+                      <p className="font-sans text-xs text-gray-300 leading-snug">
+                        {alert.description}
+                      </p>
+                      {alert.recommendedDetour && (
+                        <div className="bg-[#101414] border border-[#a3e635]/40 p-2 text-[11px] font-mono text-[#a3e635]">
+                          <span className="font-bold text-white">DETOUR:</span> {alert.recommendedDetour}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

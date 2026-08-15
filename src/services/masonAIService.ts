@@ -1,4 +1,6 @@
 import { DyrtCampsite } from '../data/dyrtCampsites';
+import { FuelStation } from './fuelService';
+import { StateTransitAlert } from './trafficService';
 
 export interface MasonRecommendation {
   campsite: DyrtCampsite;
@@ -6,19 +8,44 @@ export interface MasonRecommendation {
   titleReason: string;
   masonVerdict: string;
   weatherBadge: string;
+  trafficNote?: string;
+  nearestFuelNote?: string;
   topFeatures: string[];
+}
+
+export interface MasonFuelRecommendation {
+  station: FuelStation;
+  recommendationReason: string;
+  topFeatures: string[];
+}
+
+export interface MasonTransitRecommendation {
+  alert: StateTransitAlert;
+  advice: string;
 }
 
 export interface MasonMapActions {
   flyTo?: { lat: number; lng: number; zoom?: number };
   enableRadar?: boolean;
+  enableTraffic?: boolean;
+  enableFuel?: boolean;
   focusedCampsiteId?: string;
+  focusedFuelStationId?: string;
+}
+
+export interface MasonAnalysisContext {
+  fuelStations?: FuelStation[];
+  transitAlerts?: StateTransitAlert[];
+  showTraffic?: boolean;
+  showFuel?: boolean;
 }
 
 export interface MasonAnalysisResult {
   greeting: string;
   summaryIntel: string;
   recommendations: MasonRecommendation[];
+  fuelRecommendations?: MasonFuelRecommendation[];
+  transitAlerts?: MasonTransitRecommendation[];
   analyzedCount: number;
   engineUsed?: 'groq-llama-70b' | 'tactical-heuristic';
   mapActions?: MasonMapActions;
@@ -41,18 +68,24 @@ const DESTINATIONS: Record<string, { lat: number; lng: number; zoom: number }> =
   'redwood': { lat: 41.2132, lng: -124.0046, zoom: 10 },
   'sequoia': { lat: 36.4864, lng: -118.5658, zoom: 10 },
   'kings canyon': { lat: 36.8879, lng: -118.5551, zoom: 10 },
-  'death valley': { lat: 36.5323, lng: -116.9325, zoom: 9 }
+  'death valley': { lat: 36.5323, lng: -116.9325, zoom: 9 },
+  'grapevine': { lat: 34.8420, lng: -118.8830, zoom: 10 },
+  'austin': { lat: 30.2672, lng: -97.7431, zoom: 11 },
+  'san fernando': { lat: 34.2819, lng: -118.4390, zoom: 12 }
 };
 
 /**
  * Intelligent tactical heuristic and NLP reasoning engine for Mason.
- * Analyzes live campsite data, real-time GPS weather, terrain, amenities, and user criteria.
+ * Analyzes live campsite data, real-time GPS weather, traffic flows, gas stations, and user criteria.
  */
 export function generateMasonRecommendations(
   campsites: DyrtCampsite[],
-  userGoal: string
+  userGoal: string,
+  context?: MasonAnalysisContext
 ): MasonAnalysisResult {
   const query = (userGoal || '').toLowerCase().trim();
+  const fuelStations = context?.fuelStations || [];
+  const transitAlerts = context?.transitAlerts || [];
 
   // Detect destination flyTo
   let detectedFlyTo: { lat: number; lng: number; zoom: number } | undefined;
@@ -63,8 +96,74 @@ export function generateMasonRecommendations(
     }
   }
 
-  // Detect radar intention
+  // Detect radar, traffic, and fuel intentions
   const shouldEnableRadar = query.includes('rain') || query.includes('storm') || query.includes('radar') || query.includes('weather');
+  const shouldEnableTraffic = query.includes('traffic') || query.includes('delay') || query.includes('road') || query.includes('closure') || query.includes('pass') || query.includes('chain') || query.includes('highway') || query.includes('drive');
+  const shouldEnableFuel = query.includes('fuel') || query.includes('gas') || query.includes('diesel') || query.includes('propane') || query.includes('ev') || query.includes('charge') || query.includes('station') || query.includes('love') || query.includes('pilot') || query.includes('buc-ee') || query.includes('travel plaza');
+
+  // Evaluate Fuel Stations if user requested fuel/gas/diesel/propane/EV
+  const fuelRecs: MasonFuelRecommendation[] = [];
+  if (fuelStations.length > 0) {
+    const scoredFuel = fuelStations.map((st) => {
+      let fScore = 50;
+      const reasons: string[] = [];
+
+      if (query.includes('diesel') && st.hasDiesel) {
+        fScore += 35;
+        reasons.push('High-flow truck & RV diesel lanes verified');
+      }
+      if ((query.includes('propane') || query.includes('lpg')) && st.hasPropane) {
+        fScore += 35;
+        reasons.push('Propane tank bulk/cylinder refilling station');
+      }
+      if ((query.includes('ev') || query.includes('tesla') || query.includes('charge')) && st.hasEVCharging) {
+        fScore += 40;
+        reasons.push('DC Fast EV charging hubs on site');
+      }
+      if (query.includes('dump') && st.hasRVDump) {
+        fScore += 30;
+        reasons.push('RV sanitary dump station available');
+      }
+      if (st.isOpen24Hours) {
+        fScore += 10;
+        reasons.push('Open 24/7 with convenience mart');
+      }
+
+      if (/love|pilot|flying j|ta|buc-ee/i.test(st.brand) || /love|pilot|flying j|ta|buc-ee/i.test(st.name)) {
+        fScore += 20;
+        reasons.push('Major highway travel center with comprehensive rig amenities');
+      }
+
+      return {
+        station: st,
+        fScore,
+        recommendationReason: reasons.join(' · ') || 'Convenient highway refueling outpost.',
+        topFeatures: st.amenities.slice(0, 4)
+      };
+    });
+
+    scoredFuel.sort((a, b) => b.fScore - a.fScore);
+    scoredFuel.slice(0, 2).forEach((sf) => fuelRecs.push({
+      station: sf.station,
+      recommendationReason: sf.recommendationReason,
+      topFeatures: sf.topFeatures
+    }));
+  }
+
+  // Evaluate Transit Alerts (closures, chain controls, accidents)
+  const matchedTransit: MasonTransitRecommendation[] = [];
+  if (transitAlerts.length > 0) {
+    transitAlerts.forEach((alert) => {
+      let advice = `Active ${alert.alertType.replace('_', ' ')} on ${alert.highway}. Delay: ${alert.delayText}.`;
+      if (alert.recommendedDetour) {
+        advice += ` Detour: ${alert.recommendedDetour}`;
+      }
+      matchedTransit.push({
+        alert,
+        advice
+      });
+    });
+  }
 
   if (!Array.isArray(campsites) || campsites.length === 0) {
     return {
@@ -277,12 +376,17 @@ export function generateMasonRecommendations(
     greeting,
     summaryIntel,
     recommendations: topRecommendations,
+    fuelRecommendations: fuelRecs.length > 0 ? fuelRecs : undefined,
+    transitAlerts: matchedTransit.length > 0 ? matchedTransit : undefined,
     analyzedCount: campsites.length,
     engineUsed: 'tactical-heuristic',
     mapActions: {
       flyTo: detectedFlyTo,
       enableRadar: shouldEnableRadar,
-      focusedCampsiteId: bestSite?.id
+      enableTraffic: shouldEnableTraffic,
+      enableFuel: shouldEnableFuel,
+      focusedCampsiteId: bestSite?.id,
+      focusedFuelStationId: fuelRecs[0]?.station?.id
     }
   };
 }
@@ -292,7 +396,8 @@ export function generateMasonRecommendations(
  */
 export async function queryMasonAdvisor(
   campsites: DyrtCampsite[],
-  userGoal: string
+  userGoal: string,
+  context?: MasonAnalysisContext
 ): Promise<MasonAnalysisResult> {
   // Attempt server Groq Cloud Llama-3.3-70B API
   try {
@@ -320,7 +425,9 @@ export async function queryMasonAdvisor(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         visibleSites: subset,
-        userGoal: userGoal || 'Best overall campsite'
+        userGoal: userGoal || 'Best overall campsite',
+        fuelCount: context?.fuelStations?.length || 0,
+        trafficAlertCount: context?.transitAlerts?.length || 0
       }),
       signal: controller.signal
     });
@@ -423,5 +530,5 @@ export async function queryMasonAdvisor(
   }
 
   // Instant fallback to client heuristic reasoning engine
-  return generateMasonRecommendations(campsites, userGoal);
+  return generateMasonRecommendations(campsites, userGoal, context);
 }

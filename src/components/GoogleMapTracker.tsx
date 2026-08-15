@@ -52,7 +52,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
   const [aiTargetIds, setAiTargetIds] = useState<string[]>([]);
 
   const handleApplyMapActions = (
-    actions?: { flyTo?: { lat: number; lng: number; zoom?: number }; enableRadar?: boolean; focusedCampsiteId?: string },
+    actions?: { flyTo?: { lat: number; lng: number; zoom?: number }; enableRadar?: boolean; enableTraffic?: boolean; enableFuel?: boolean; focusedCampsiteId?: string; focusedFuelStationId?: string },
     recommendedIds: string[] = []
   ) => {
     if (recommendedIds.length > 0) {
@@ -62,6 +62,12 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
 
     if (actions.enableRadar) {
       setShowRadar(true);
+    }
+    if (actions.enableTraffic) {
+      setShowTraffic(true);
+    }
+    if (actions.enableFuel) {
+      setShowFuelStations(true);
     }
 
     if (actions.flyTo && mapInstanceRef.current) {
@@ -76,6 +82,16 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
         setActiveSite(found);
         if (mapInstanceRef.current && !actions.flyTo) {
           mapInstanceRef.current.setView([found.lat, found.lng], 13, { animate: true });
+        }
+      }
+    }
+
+    if (actions.focusedFuelStationId) {
+      const foundFuel = visibleFuelStations.find(f => f.id === actions.focusedFuelStationId);
+      if (foundFuel) {
+        setSelectedFuelStation(foundFuel);
+        if (mapInstanceRef.current && !actions.flyTo) {
+          mapInstanceRef.current.setView([foundFuel.lat, foundFuel.lng], 14, { animate: true });
         }
       }
     }
@@ -984,7 +1000,15 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
         isOpen={isMasonDrawerOpen}
         onClose={() => setIsMasonDrawerOpen(false)}
         visibleCampsites={visibleCampsites}
+        visibleFuelStations={visibleFuelStations}
+        activeTransitAlerts={activeTransitAlerts}
         onSelectCampsite={handleSelectCampsiteFromList}
+        onSelectFuelStation={(st) => {
+          setSelectedFuelStation(st);
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.setView([st.lat, st.lng], 14, { animate: true });
+          }
+        }}
         onApplyMapActions={handleApplyMapActions}
       />
 
