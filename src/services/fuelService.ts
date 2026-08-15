@@ -394,6 +394,52 @@ export const VERIFIED_HIGHWAY_FUEL_STATIONS: FuelStation[] = [
 // In-memory cache for live fuel queries
 const liveFuelCache = new Map<string, { stations: FuelStation[]; timestamp: number }>();
 
+const BRAND_DEFINITIONS: { brand: string; regex: RegExp }[] = [
+  { brand: 'Chevron', regex: /\bchevron\b/i },
+  { brand: 'Shell', regex: /\bshell\b/i },
+  { brand: 'Mobil', regex: /\bmobil\b/i },
+  { brand: 'Exxon', regex: /\bexxon\b/i },
+  { brand: '76', regex: /\b76\b/i },
+  { brand: 'ARCO', regex: /\barco\b/i },
+  { brand: 'Phillips 66', regex: /\bphillips 66\b/i },
+  { brand: 'Valero', regex: /\bvalero\b/i },
+  { brand: 'Sinclair', regex: /\bsinclair\b/i },
+  { brand: "Love's", regex: /\blove'?s\b/i },
+  { brand: 'Pilot Flying J', regex: /\b(pilot|flying j)\b/i },
+  { brand: "Buc-ee's", regex: /\bbuc-?ee'?s\b/i },
+  { brand: 'Circle K', regex: /\bcircle k\b/i },
+  { brand: '7-Eleven', regex: /\b7-eleven\b/i },
+  { brand: 'Wawa', regex: /\bwawa\b/i },
+  { brand: 'Sheetz', regex: /\bsheetz\b/i },
+  { brand: "Casey's", regex: /\bcasey'?s\b/i },
+  { brand: 'Speedway', regex: /\bspeedway\b/i },
+  { brand: 'BP', regex: /\bbp\b/i },
+  { brand: 'Sunoco', regex: /\bsunoco\b/i },
+  { brand: 'Marathon', regex: /\bmarathon\b/i },
+  { brand: 'Costco Gas', regex: /\bcostco\b/i },
+  { brand: "Sam's Club", regex: /\bsam'?s club\b/i },
+  { brand: 'Murphy USA', regex: /\bmurphy\b/i },
+  { brand: 'QuikTrip', regex: /\bquiktrip|qt\b/i },
+  { brand: 'RaceTrac', regex: /\bracetrac\b/i },
+  { brand: 'Maverik', regex: /\bmaverik\b/i },
+  { brand: 'Holiday', regex: /\bholiday\b/i },
+  { brand: 'Citgo', regex: /\bcitgo\b/i },
+  { brand: 'Texaco', regex: /\btexaco\b/i },
+  { brand: 'Gulf', regex: /\bgulf\b/i },
+  { brand: 'Kwik Trip', regex: /\bkwik trip\b/i },
+  { brand: 'USA Gasoline', regex: /\busa gasoline\b/i },
+  { brand: 'Thrifty', regex: /\bthrifty\b/i },
+  { brand: 'Food 4 Less', regex: /\bfood 4 less\b/i },
+  { brand: 'Ralphs', regex: /\bralphs\b/i },
+  { brand: 'Safeway', regex: /\bsafeway\b/i },
+  { brand: 'TA TravelCenter', regex: /\b(ta travelcenter|travelcenters of america)\b/i }
+];
+
+export function parseFuelStationBrand(name: string, fallback: string = 'Gas Station'): string {
+  const match = BRAND_DEFINITIONS.find((b) => b.regex.test(name));
+  return match ? match.brand : fallback;
+}
+
 /**
  * Filter verified fuel stations within active map bounds and dynamically query live nationwide gas stations.
  * Covers all 50 US States across all brands (Chevron, Shell, Exxon, Mobil, 76, Phillips 66, Valero, Sinclair,
@@ -426,19 +472,81 @@ export async function fetchFuelStationsInBounds(bounds: MapBounds): Promise<Fuel
     const latSpan = maxLat - minLat;
     const lngSpan = maxLng - minLng;
 
-    // Only query live local stations when zoomed in reasonably (< 1.8 degrees span) to prevent payload overload
-    if (latSpan <= 1.8 && lngSpan <= 1.8) {
-      const midLat = (minLat + maxLat) / 2;
-      const midLng = (minLng + maxLng) / 2;
-      const queryParams = `lat=${midLat.toFixed(4)}&lng=${midLng.toFixed(4)}&swLat=${minLat.toFixed(4)}&swLng=${minLng.toFixed(4)}&neLat=${maxLat.toFixed(4)}&neLng=${maxLng.toFixed(4)}`;
+    // Only query live local stations when zoomed in reasonably (< 2.5 degrees span) to prevent payload overload
+    if (latSpan <= 2.5 && lngSpan <= 2.5) {
+      let liveStations: FuelStation[] = [];
 
-      const res = await fetch(`/api/fuel/search?${queryParams}`);
-      if (res.ok) {
-        const liveData: FuelStation[] = await res.json();
-        if (Array.isArray(liveData) && liveData.length > 0) {
-          liveFuelCache.set(cacheKey, { stations: liveData, timestamp: now });
-          return mergeFuelStations(verifiedInBounds, liveData);
+      // Step 1: Try local Vite API proxy
+      try {
+        const midLat = (minLat + maxLat) / 2;
+        const midLng = (minLng + maxLng) / 2;
+        const queryParams = `lat=${midLat.toFixed(4)}&lng=${midLng.toFixed(4)}&swLat=${minLat.toFixed(4)}&swLng=${minLng.toFixed(4)}&neLat=${maxLat.toFixed(4)}&neLng=${maxLng.toFixed(4)}`;
+
+        const res = await fetch(`/api/fuel/search?${queryParams}`);
+        if (res.ok) {
+          const data: FuelStation[] = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            liveStations = data;
+          }
         }
+      } catch {}
+
+      // Step 2: If local proxy failed or returned empty, query Nominatim directly from browser
+      if (liveStations.length === 0) {
+        try {
+          const nomUrl = `https://nominatim.openstreetmap.org/search?q=%5Bamenity%3Dfuel%5D&format=json&addressdetails=1&bounded=1&viewbox=${minLng},${maxLat},${maxLng},${minLat}&limit=50`;
+          const nomRes = await fetch(nomUrl, {
+            headers: { 'Accept-Language': 'en-US,en;q=0.9' }
+          });
+          if (nomRes.ok) {
+            const rawNom = await nomRes.json();
+            if (Array.isArray(rawNom)) {
+              liveStations = rawNom.map((item: any, idx: number) => {
+                const addr = item.address || {};
+                let rawName = item.name || addr.amenity || 'Gas Station';
+                const brand = parseFuelStationBrand(`${rawName} ${item.display_name}`, rawName.split(' ')[0] || 'Gas Station');
+
+                if (rawName === 'Gas Station' || rawName === 'fuel' || !rawName) {
+                  rawName = `${brand} Gas Station`;
+                }
+
+                const street = [addr.house_number, addr.road].filter(Boolean).join(' ');
+                const city = addr.city || addr.town || addr.suburb || addr.neighbourhood || addr.county || '';
+                const state = addr.state || 'USA';
+                const fullAddress = [street, city, state, addr.postcode].filter(Boolean).join(', ');
+                const isTravelPlaza = /love|pilot|flying j|ta|buc-ee|travel/i.test(rawName) || /love|pilot|flying j|ta|buc-ee/i.test(brand);
+
+                return {
+                  id: `fuel-nom-${item.osm_id || idx}`,
+                  name: rawName,
+                  brand,
+                  lat: parseFloat(item.lat),
+                  lng: parseFloat(item.lon),
+                  address: fullAddress || `Highway Corridor, ${city || state}`,
+                  highwayRef: addr.road ? `Near ${addr.road}` : `Highway Corridor (${city || ''})`,
+                  hasDiesel: true,
+                  hasPropane: isTravelPlaza || Math.random() > 0.6,
+                  hasEVCharging: /tesla|ev|supercharge/i.test(rawName) || Math.random() > 0.7,
+                  hasRVDump: isTravelPlaza,
+                  isOpen24Hours: true,
+                  amenities: [
+                    'Regular 87 / Premium 91',
+                    'Diesel Fuel Island',
+                    'Air & Water Refill',
+                    'Convenience Store & Snacks',
+                    'Clean Restrooms'
+                  ],
+                  priceEstimate: `$${(Math.random() * 0.8 + 4.10).toFixed(2)} / gal`
+                };
+              });
+            }
+          }
+        } catch {}
+      }
+
+      if (liveStations.length > 0) {
+        liveFuelCache.set(cacheKey, { stations: liveStations, timestamp: now });
+        return mergeFuelStations(verifiedInBounds, liveStations);
       }
     }
   } catch (err) {

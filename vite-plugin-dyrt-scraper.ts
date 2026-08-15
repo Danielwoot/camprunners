@@ -13316,9 +13316,9 @@ export default function dyrtScraperPlugin(): Plugin {
             }
           }
 
-          const photonUrl = `https://photon.komoot.io/api/?q=gas+station&lat=${lat.toFixed(4)}&lon=${lng.toFixed(4)}&osm_tag=amenity:fuel&limit=45`;
+          const nomUrl = `https://nominatim.openstreetmap.org/search?q=%5Bamenity%3Dfuel%5D&format=json&addressdetails=1&bounded=1&viewbox=${swLng},${neLat},${neLng},${swLat}&limit=50`;
 
-          https.get(photonUrl, {
+          https.get(nomUrl, {
             headers: {
               'User-Agent': 'Camprunners-Fuel/1.0 (contact@camprunners.io)',
               'Accept-Encoding': 'gzip, deflate, br'
@@ -13334,51 +13334,81 @@ export default function dyrtScraperPlugin(): Plugin {
             stream.on('data', (c: any) => b += c);
             stream.on('end', () => {
               try {
-                const json = JSON.parse(b);
+                const raw = JSON.parse(b);
                 const results: any[] = [];
-                const knownBrands = [
-                  'Chevron', 'Shell', 'Exxon', 'Mobil', '76', 'Phillips 66', 'Valero', 'Sinclair',
-                  "Love's", 'Pilot Flying J', 'Flying J', 'Pilot', 'TA', 'Buc-ee\'s', 'Circle K',
-                  'Wawa', 'Sheetz', "Casey's", 'Speedway', 'ARCO', 'BP', 'Sunoco', 'Marathon',
-                  'Costco', "Sam's Club", 'Murphy USA', 'Kum & Go', 'QuikTrip', 'RaceTrac', 'Maverik',
-                  'Holiday', 'Citgo', 'Texaco', 'Gulf', 'Kwik Trip'
+                const brandDefinitions = [
+                  { brand: 'Chevron', regex: /\bchevron\b/i },
+                  { brand: 'Shell', regex: /\bshell\b/i },
+                  { brand: 'Mobil', regex: /\bmobil\b/i },
+                  { brand: 'Exxon', regex: /\bexxon\b/i },
+                  { brand: '76', regex: /\b76\b/i },
+                  { brand: 'ARCO', regex: /\barco\b/i },
+                  { brand: 'Phillips 66', regex: /\bphillips 66\b/i },
+                  { brand: 'Valero', regex: /\bvalero\b/i },
+                  { brand: 'Sinclair', regex: /\bsinclair\b/i },
+                  { brand: "Love's", regex: /\blove'?s\b/i },
+                  { brand: 'Pilot Flying J', regex: /\b(pilot|flying j)\b/i },
+                  { brand: "Buc-ee's", regex: /\bbuc-?ee'?s\b/i },
+                  { brand: 'Circle K', regex: /\bcircle k\b/i },
+                  { brand: '7-Eleven', regex: /\b7-eleven\b/i },
+                  { brand: 'Wawa', regex: /\bwawa\b/i },
+                  { brand: 'Sheetz', regex: /\bsheetz\b/i },
+                  { brand: "Casey's", regex: /\bcasey'?s\b/i },
+                  { brand: 'Speedway', regex: /\bspeedway\b/i },
+                  { brand: 'BP', regex: /\bbp\b/i },
+                  { brand: 'Sunoco', regex: /\bsunoco\b/i },
+                  { brand: 'Marathon', regex: /\bmarathon\b/i },
+                  { brand: 'Costco Gas', regex: /\bcostco\b/i },
+                  { brand: "Sam's Club", regex: /\bsam'?s club\b/i },
+                  { brand: 'Murphy USA', regex: /\bmurphy\b/i },
+                  { brand: 'QuikTrip', regex: /\bquiktrip|qt\b/i },
+                  { brand: 'RaceTrac', regex: /\bracetrac\b/i },
+                  { brand: 'Maverik', regex: /\bmaverik\b/i },
+                  { brand: 'Holiday', regex: /\bholiday\b/i },
+                  { brand: 'Citgo', regex: /\bcitgo\b/i },
+                  { brand: 'Texaco', regex: /\btexaco\b/i },
+                  { brand: 'Gulf', regex: /\bgulf\b/i },
+                  { brand: 'Kwik Trip', regex: /\bkwik trip\b/i },
+                  { brand: 'USA Gasoline', regex: /\busa gasoline\b/i },
+                  { brand: 'Thrifty', regex: /\bthrifty\b/i },
+                  { brand: 'Food 4 Less', regex: /\bfood 4 less\b/i },
+                  { brand: 'Ralphs', regex: /\bralphs\b/i },
+                  { brand: 'Safeway', regex: /\bsafeway\b/i },
+                  { brand: 'TA TravelCenter', regex: /\b(ta travelcenter|travelcenters of america)\b/i }
                 ];
 
-                (json.features || []).forEach((f: any, idx: number) => {
-                  const p = f.properties || {};
-                  const coords = f.geometry?.coordinates;
-                  if (!coords || coords.length < 2) return;
+                (Array.isArray(raw) ? raw : []).forEach((item: any, idx: number) => {
+                  const addr = item.address || {};
+                  let rawName = item.name || addr.amenity || 'Gas Station';
+                  const match = brandDefinitions.find((b) => b.regex.test(`${rawName} ${item.display_name}`));
+                  const brand = match ? match.brand : (rawName.split(' ')[0] || 'Gas Station');
 
-                  const stationLat = coords[1];
-                  const stationLng = coords[0];
-
-                  let rawName = p.name || `${p.brand || 'Gas'} Station`;
-                  let brand = p.brand || '';
-
-                  if (!brand) {
-                    const matched = knownBrands.find(b => rawName.toLowerCase().includes(b.toLowerCase()));
-                    brand = matched || rawName.split(' ')[0] || 'Gas Station';
+                  if (rawName === 'Gas Station' || rawName === 'fuel' || !rawName) {
+                    rawName = `${brand} Gas Station`;
                   }
 
-                  const streetAddress = [p.housenumber, p.street, p.city, p.state].filter(Boolean).join(', ');
-                  const isMajorTravelPlaza = /love|pilot|flying j|ta |buc-ee|travel/i.test(rawName) || /love|pilot|flying j|ta |buc-ee/i.test(brand);
+                  const street = [addr.house_number, addr.road].filter(Boolean).join(' ');
+                  const city = addr.city || addr.town || addr.suburb || addr.neighbourhood || addr.county || '';
+                  const state = addr.state || 'USA';
+                  const fullAddress = [street, city, state, addr.postcode].filter(Boolean).join(', ');
+                  const isTravelPlaza = /love|pilot|flying j|ta|buc-ee|travel/i.test(rawName) || /love|pilot|flying j|ta|buc-ee/i.test(brand);
 
                   results.push({
-                    id: `fuel-live-${p.osm_id || idx}`,
+                    id: `fuel-live-${item.osm_id || idx}`,
                     name: rawName,
                     brand,
-                    lat: stationLat,
-                    lng: stationLng,
-                    address: streetAddress || `${p.city || 'Highway Corridor'}, ${p.state || 'USA'}`,
-                    highwayRef: p.street ? `Near ${p.street}` : `Highway Corridor (${p.city || ''})`,
-                    hasDiesel: true, // Almost all modern US gas stations provide regular & diesel
-                    hasPropane: isMajorTravelPlaza || Math.random() > 0.6,
-                    hasEVCharging: Math.random() > 0.7,
-                    hasRVDump: isMajorTravelPlaza,
+                    lat: parseFloat(item.lat),
+                    lng: parseFloat(item.lon),
+                    address: fullAddress || `Highway Corridor, ${city || state}`,
+                    highwayRef: addr.road ? `Near ${addr.road}` : `Highway Corridor (${city || ''})`,
+                    hasDiesel: true,
+                    hasPropane: isTravelPlaza || Math.random() > 0.6,
+                    hasEVCharging: /tesla|ev|supercharge/i.test(rawName) || Math.random() > 0.7,
+                    hasRVDump: isTravelPlaza,
                     isOpen24Hours: true,
                     amenities: [
                       'Regular 87 / Premium 91',
-                      'Diesel Fuel',
+                      'Diesel Fuel Island',
                       'Air & Water Pump',
                       'Convenience Store & Drinks',
                       'Clean Restrooms'
