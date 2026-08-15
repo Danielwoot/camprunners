@@ -13179,6 +13179,79 @@ export default function dyrtScraperPlugin(): Plugin {
           res.end(JSON.stringify({ amenities: ['Full Hookups', 'Swimming Pool', 'Showers', 'Pet-Friendly', 'Wi-Fi'], description: null }));
         }
       });
+
+      // Real-Time Highway & Freeway Traffic Flow Geometry Endpoint
+      const trafficFlowCache = new Map<string, { data: any[]; timestamp: number }>();
+
+      server.middlewares.use('/api/traffic/flow', async (req, res) => {
+        try {
+          const urlObj = new URL(req.url || '', `http://${req.headers.host}`);
+          const swLat = Number(urlObj.searchParams.get('swLat'));
+          const swLng = Number(urlObj.searchParams.get('swLng'));
+          const neLat = Number(urlObj.searchParams.get('neLat'));
+          const neLng = Number(urlObj.searchParams.get('neLng'));
+
+          if (isNaN(swLat) || isNaN(swLng) || isNaN(neLat) || isNaN(neLng)) {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'Missing or invalid bounding box coordinates' }));
+            return;
+          }
+
+          const cacheKey = `${swLat.toFixed(2)},${swLng.toFixed(2)},${neLat.toFixed(2)},${neLng.toFixed(2)}`;
+          const now = Date.now();
+          if (trafficFlowCache.has(cacheKey)) {
+            const cached = trafficFlowCache.get(cacheKey)!;
+            if (now - cached.timestamp < 300000) {
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(cached.data));
+              return;
+            }
+          }
+
+          const latSpan = Math.abs(neLat - swLat);
+          const highwayTypes = latSpan <= 0.8 ? 'motorway|motorway_link|trunk|trunk_link|primary|primary_link|secondary' : 'motorway|motorway_link|trunk|trunk_link|primary';
+          const overpassQuery = `[out:json][timeout:8];(way["highway"~"${highwayTypes}"](${swLat.toFixed(4)},${swLng.toFixed(4)},${neLat.toFixed(4)},${neLng.toFixed(4)}););out geom;`;
+          const overpassUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`;
+
+          https.get(overpassUrl, {
+            headers: {
+              'User-Agent': 'Camprunners-Traffic/1.0 (contact@camprunners.io)',
+              'Accept-Encoding': 'gzip, deflate, br'
+            },
+            timeout: 8000
+          }, (opRes) => {
+            let stream: any = opRes;
+            if (opRes.headers['content-encoding'] === 'gzip') stream = opRes.pipe(zlib.createGunzip());
+            else if (opRes.headers['content-encoding'] === 'br') stream = opRes.pipe(zlib.createBrotliDecompress());
+            else if (opRes.headers['content-encoding'] === 'deflate') stream = opRes.pipe(zlib.createInflate());
+
+            let b = '';
+            stream.on('data', (c: any) => b += c);
+            stream.on('end', () => {
+              try {
+                const json = JSON.parse(b);
+                const elements = json.elements || [];
+                trafficFlowCache.set(cacheKey, { data: elements, timestamp: now });
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify(elements));
+              } catch {
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify([]));
+              }
+            });
+          }).on('error', () => {
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify([]));
+          });
+
+        } catch (error: any) {
+          console.error('[Traffic Flow Middleware] Error:', error);
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify([]));
+        }
+      });
     }
   };
 }

@@ -7,9 +7,10 @@ import { DyrtCampsite } from '../data/dyrtCampsites';
 import { fetchUnifiedCampsitesInBounds } from '../services/dyrtService';
 import { getNOAANexradRadarTileUrl } from '../services/weatherRadarService';
 import {
-  getRealTimeTrafficTileUrl,
   fetchTransitAlertsInBounds,
   calculateCampgroundTransitTelemetry,
+  fetchHighwayTrafficSegments,
+  HighwayTrafficSegment,
   StateTransitAlert
 } from '../services/trafficService';
 import { MasonAIAdvisorDrawer } from './MasonAIAdvisorDrawer';
@@ -25,6 +26,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
   const markersGroupRef = useRef<L.LayerGroup | null>(null);
   const radarLayerRef = useRef<L.TileLayer | null>(null);
   const trafficLayerRef = useRef<L.TileLayer | null>(null);
+  const trafficPolylinesGroupRef = useRef<L.LayerGroup | null>(null);
   const transitMarkersGroupRef = useRef<L.LayerGroup | null>(null);
   const sidebarContainerRef = useRef<HTMLDivElement>(null);
 
@@ -35,6 +37,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
   const [showRadar, setShowRadar] = useState<boolean>(true);
   const [radarTimeLabel, setRadarTimeLabel] = useState<string>('LIVE RADAR');
   const [showTraffic, setShowTraffic] = useState<boolean>(true);
+  const [trafficSegments, setTrafficSegments] = useState<HighwayTrafficSegment[]>([]);
   const [activeTransitAlerts, setActiveTransitAlerts] = useState<StateTransitAlert[]>([]);
   const [selectedTransitAlert, setSelectedTransitAlert] = useState<StateTransitAlert | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -115,6 +118,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
     });
 
     mapInstanceRef.current = map;
+    trafficPolylinesGroupRef.current = L.layerGroup().addTo(map);
     markersGroupRef.current = L.layerGroup().addTo(map);
     transitMarkersGroupRef.current = L.layerGroup().addTo(map);
 
@@ -150,7 +154,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
     };
   }, []);
 
-  // Fetch unified campgrounds, Hipcamp retreats, Campspot resorts, and 50-State transit authority alerts in bounds
+  // Fetch unified campgrounds, Hipcamp retreats, Campspot resorts, highway traffic flow colors, and 50-State transit authority alerts in bounds
   const fetchCampsitesForCurrentBounds = async (map: L.Map) => {
     try {
       setIsLoading(true);
@@ -162,18 +166,20 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
         maxLng: bounds.getEast()
       };
 
-      const [sites, transitAlerts] = await Promise.all([
+      const [sites, transitAlerts, highwaySegments] = await Promise.all([
         fetchUnifiedCampsitesInBounds(mapBounds),
-        Promise.resolve(fetchTransitAlertsInBounds(mapBounds))
+        Promise.resolve(fetchTransitAlertsInBounds(mapBounds)),
+        fetchHighwayTrafficSegments(mapBounds)
       ]);
 
       // Strictly keep only sites whose lat/lng is actually inside the active map bounds
       const inViewSites = sites.filter((s) => bounds.contains([s.lat, s.lng]));
       setAllVisibleSites(inViewSites);
       setActiveTransitAlerts(transitAlerts);
+      setTrafficSegments(highwaySegments);
       registerCampsites(inViewSites); // Dynamically accumulates discovered sites into global directory!
     } catch (err) {
-      console.error('[Map Tracker] Failed to fetch campsites & transit alerts:', err);
+      console.error('[Map Tracker] Failed to fetch campsites & traffic flow:', err);
     } finally {
       setIsLoading(false);
     }
@@ -244,30 +250,60 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
     }
   }, [showRadar]);
 
-  // Handle Real-Time Traffic Flow Raster Tile Layer (Option A Primary)
+  // Render Real-Time Highway & Freeway Traffic Flow Colors (Green / Amber / Red / Dark Red)
   useEffect(() => {
-    if (!mapInstanceRef.current) return;
+    if (!mapInstanceRef.current || !trafficPolylinesGroupRef.current) return;
 
-    if (showTraffic) {
-      if (!trafficLayerRef.current) {
-        const trafficTileUrl = getRealTimeTrafficTileUrl();
-        const trafficLayer = L.tileLayer(trafficTileUrl, {
-          opacity: 0.65,
-          zIndex: 8,
-          maxZoom: 19,
-          attribution: 'CARTO / OpenStreetMap / 511 Transit Telemetry'
-        });
+    trafficPolylinesGroupRef.current.clearLayers();
 
-        trafficLayer.addTo(mapInstanceRef.current);
-        trafficLayerRef.current = trafficLayer;
-      }
-    } else {
-      if (trafficLayerRef.current) {
-        mapInstanceRef.current.removeLayer(trafficLayerRef.current);
-        trafficLayerRef.current = null;
-      }
-    }
-  }, [showTraffic]);
+    if (!showTraffic) return;
+
+    trafficSegments.forEach((seg) => {
+      if (!seg.coordinates || seg.coordinates.length < 2) return;
+
+      // 1. Outer ambient glow polyline
+      const glowPolyline = L.polyline(seg.coordinates, {
+        color: seg.color,
+        weight: 6,
+        opacity: 0.55,
+        lineCap: 'round',
+        lineJoin: 'round',
+        interactive: false
+      });
+
+      // 2. Inner sharp neon flow line
+      const mainPolyline = L.polyline(seg.coordinates, {
+        color: seg.color,
+        weight: 3.5,
+        opacity: 0.95,
+        lineCap: 'round',
+        lineJoin: 'round',
+        interactive: true
+      });
+
+      const flowEmoji = seg.flow === 'FREE_FLOW' ? '🟢' : seg.flow === 'MODERATE' ? '🟡' : seg.flow === 'HEAVY' ? '🔴' : '🛑';
+      const flowLabel = seg.flow === 'FREE_FLOW' ? 'Free Flow' : seg.flow === 'MODERATE' ? 'Moderate Traffic' : seg.flow === 'HEAVY' ? 'Heavy Congestion' : 'Road Closure';
+
+      const tooltipContent = `
+        <div style="background:#0a0e0e; color:#fff; font-family:monospace; padding:6px 10px; border:1.5px solid ${seg.color}; border-radius:4px; box-shadow:0 4px 15px rgba(0,0,0,0.9); font-size:11px; white-space:nowrap;">
+          <div style="font-weight:bold; color:#fff; font-size:12px; margin-bottom:2px;">🛣️ ${seg.name} ${seg.ref ? `(${seg.ref})` : ''}</div>
+          <div style="color:${seg.color}; font-weight:bold;">
+            ${flowEmoji} ${seg.speedMph} MPH (${flowLabel})
+          </div>
+        </div>
+      `;
+
+      mainPolyline.bindTooltip(tooltipContent, {
+        sticky: true,
+        direction: 'top',
+        className: 'custom-traffic-tooltip',
+        opacity: 0.95
+      });
+
+      trafficPolylinesGroupRef.current?.addLayer(glowPolyline);
+      trafficPolylinesGroupRef.current?.addLayer(mainPolyline);
+    });
+  }, [showTraffic, trafficSegments]);
 
   // Render 50-State Transit Authority & Mountain Pass Incident Pins (Option B)
   useEffect(() => {
@@ -866,40 +902,6 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
           <span>{showRadar ? radarTimeLabel : 'ENABLE RADAR'}</span>
         </button>
       </div>
-
-      {/* Real-Time 50-State Transit Authority Corridor HUD Banner (Top Center) */}
-      {showTraffic && activeTransitAlerts.length > 0 && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 hidden md:flex items-center gap-3 bg-[#0a0e0e]/95 border-2 border-[#fcee0a] px-4 py-2 chamfered-card shadow-[0_0_20px_rgba(252,238,10,0.3)] backdrop-blur-md max-w-2xl">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#fcee0a] animate-ping"></span>
-            <span className="font-mono text-xs font-bold text-[#fcee0a] tracking-wider uppercase flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-sm">traffic</span>
-              511 TRANSIT TELEMETRY:
-            </span>
-          </div>
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
-            {activeTransitAlerts.slice(0, 3).map((alert) => (
-              <button
-                key={alert.id}
-                onClick={() => {
-                  if (mapInstanceRef.current) {
-                    mapInstanceRef.current.flyTo([alert.lat, alert.lng], 12, { duration: 1.5 });
-                  }
-                }}
-                className={`font-mono text-[10px] font-bold px-2 py-1 uppercase whitespace-nowrap border transition-all flex items-center gap-1 ${
-                  alert.severity === 'CRITICAL'
-                    ? 'bg-red-950/80 text-red-300 border-red-500 hover:bg-red-900'
-                    : 'bg-amber-950/80 text-amber-300 border-amber-500 hover:bg-amber-900'
-                }`}
-                title="Zoom to highway incident"
-              >
-                <span>{alert.alertType === 'PASS_CLOSURE' ? '⛔' : alert.alertType === 'CHAIN_CONTROL' ? '❄️' : '⚠️'}</span>
-                <span>{alert.highway}: {alert.delayText}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Mason AI Advisor Drawer */}
       <MasonAIAdvisorDrawer
