@@ -67,9 +67,34 @@ function fetchDyrtDirect(bbox: string): Promise<any[]> {
 
               const rawName = String(item.attributes.name || '');
               const rawSlug = String(item.attributes.slug || '');
-              // Reject dump stations, sewage waste stations, and highway rest areas that are not campsites
-              if (/dump station|sanitary dump|rest area|sewage dump|\bdump\b/i.test(rawName) ||
-                  /dump-station|sanitary-dump|rest-area|sewage-dump/i.test(rawSlug)) {
+              const itemId = String(item.id || '');
+              const locType = String(item.attributes?.['location-type'] || item.attributes?.type || item.type || '').toLowerCase();
+
+              // 1. Exclude non-campground utility points (Water stations, dump stations, propane, etc.)
+              // These do not have /camping/ pages on The Dyrt and produce 404 "Oops! Wrong Turn" errors
+              if (
+                locType === 'water_station' ||
+                locType === 'dump_station' ||
+                locType === 'propane_station' ||
+                locType === 'gear_shop' ||
+                locType === 'rv_storage' ||
+                locType === 'rv_dealer' ||
+                locType === 'sanitary_dump' ||
+                itemId.includes('WaterStation') ||
+                itemId.includes('DumpStation') ||
+                itemId.includes('SanitaryDump')
+              ) {
+                return false;
+              }
+
+              // 2. Reject commercial backlink SEO spam, ads, and non-campsite utility keywords
+              const SPAM_REGEX = /packaging|custom.*box|seo\b|marketing\b|insurance\b|loan\b|casino\b|crypto\b|software\b|plumber\b|dentist\b|escort\b|vape\b|cbd\b|replica\b|watches\b|air duct|carpet cleaning|pest control|moving company|potable water|water refill|dump station|sanitary dump|\bpotable\b/i;
+              if (SPAM_REGEX.test(rawName) || SPAM_REGEX.test(rawSlug)) {
+                return false;
+              }
+
+              // 3. Reject listings without a valid campground title
+              if (rawName.trim().length < 3 || /^\d+$/.test(rawName.trim())) {
                 return false;
               }
 
@@ -80,7 +105,7 @@ function fetchDyrtDirect(bbox: string): Promise<any[]> {
               const lat = Number(attr.latitude);
               const lng = Number(attr.longitude);
               const name = attr.name || 'Campground';
-              let state = attr['region-name'] || 'Unknown State';
+              let state = attr['region-name'] || 'California';
 
               // Geographically accurate Canadian province detection (49th parallel border)
               if (lat > 49.0) {
@@ -94,7 +119,9 @@ function fetchDyrtDirect(bbox: string): Promise<any[]> {
 
               const slug = attr.slug || '';
               const locationId = attr['location-id'] || item.id;
-              const stateSlug = state.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+              
+              // Normalize state slug to match exact Dyrt URL structure (e.g. 'california' not 'california-ca')
+              const stateSlug = state.split(',')[0].trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
               const url = slug ? `https://thedyrt.com/camping/${stateSlug}/${slug}` : `https://thedyrt.com/search?q=${encodeURIComponent(name)}`;
 
               let photoUrl = attr['photo-url'];
