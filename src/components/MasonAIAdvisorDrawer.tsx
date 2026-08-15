@@ -180,19 +180,17 @@ export const MasonAIAdvisorDrawer: React.FC<MasonAIAdvisorDrawerProps> = ({
         {/* Mason's Analysis Results */}
         {!isAnalyzing && analysisResult && (
           <div className="space-y-4 animate-in fade-in duration-300">
-            {/* Mason's Dispatch Header Note */}
-            <div className="bg-[#121818] border-l-4 border-[#a3e635] p-3.5 chamfered-card font-mono text-xs space-y-1.5">
-              <div className="flex justify-between items-center">
-                <span className="text-[#a3e635] font-bold uppercase tracking-wider block">
-                  MASON'S FIELD BRIEFING:
-                </span>
-                <span className="bg-[#a3e635] text-black text-[8px] font-black px-1.5 py-0.2 uppercase">
-                  TACTICAL ADVISOR
-                </span>
-              </div>
-              <p className="text-gray-200 leading-relaxed text-[11px] font-sans">
-                {analysisResult.summaryIntel || "Here are my tactical findings based on your sector criteria."}
-              </p>
+            {/* AI Engine Status Badge */}
+            <div className="flex justify-between items-center px-1 font-mono text-[10px] text-gray-400">
+              <span className="flex items-center gap-1.5 text-[#a3e635] font-bold">
+                <span className="w-2 h-2 rounded-full bg-[#a3e635] animate-pulse"></span>
+                {analysisResult.engineUsed === 'groq-llama-70b'
+                  ? 'GROQ CLOUD LLAMA 3.3 70B // REAL-TIME INTEL'
+                  : 'TACTICAL EXPEDITION TELEMETRY // ACTIVE'}
+              </span>
+              <span className="text-gray-500">
+                {analysisResult.analyzedCount || visibleCampsites.length} OUTPOSTS ANALYZED
+              </span>
             </div>
 
             {/* Top Recommended Outpost Cards */}

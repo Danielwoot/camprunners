@@ -12916,7 +12916,13 @@ async function fetchCampspotDirect(swLat: number, swLng: number, neLat: number, 
   return Promise.resolve(enriched);
 }
 
-function queryGroqAdvisor(visibleSites: any[], userGoal: string, explicitKey?: string): Promise<any> {
+function queryGroqAdvisor(
+  visibleSites: any[],
+  userGoal: string,
+  visibleFuel: any[] = [],
+  transitAlerts: any[] = [],
+  explicitKey?: string
+): Promise<any> {
   return new Promise((resolve) => {
     let apiKey = explicitKey || process.env.GROQ_API_KEY || '';
     if (!apiKey) {
@@ -12937,41 +12943,69 @@ function queryGroqAdvisor(visibleSites: any[], userGoal: string, explicitKey?: s
       return;
     }
 
-    const systemPrompt = `You are Mason, an experienced outdoor tactical advisor on Camprunners.
-Analyze the provided Visible Campsites and their real-time weather conditions to recommend the best options for the user's objective.
-You also have direct control over the interactive Leaflet map.
+    const systemPrompt = `You are Mason, the lead outdoor tactical expedition AI on Camprunners.
+You have real-time GPS telemetry access to:
+1. Visible Campsites & Wilderness Retreats (Public land, Hipcamp, Campspot)
+2. Visible Gas Stations & Highway Travel Centers (Chevron, Love's, Pilot Flying J, Shell, Buc-ee's, TA, etc. with Diesel, Propane, EV fast charging, 24/7 C-Stores)
+3. Live 50-State DOT Highway Traffic & Mountain Pass Incident Feeds (road closures, winter chain controls, major highway delays, detours)
 
-CRITICAL INSTRUCTIONS:
-1. You MUST select and recommend from the provided Visible Campsites list whenever applicable.
-2. The 'id' in your recommendations MUST be the EXACT 'id' copied from the Visible Campsites JSON list (e.g. 'dyrt-88412' or 'hipcamp-12345'). Never use generic placeholders like 'campsite-1'.
-3. Include 'name': the exact campsite name.
-4. If the user's goal cannot be met in the visible area, explain this honestly in summaryIntel and recommend the closest/best alternative from the visible list.
+CRITICAL DIRECTIVES:
+1. If the user asks about gas stations, diesel, propane, EV chargers, travel plazas, or refueling:
+   - Analyze the provided Visible Gas Stations list.
+   - Include 'fuelRecommendations' with the best matching stations (e.g. diesel lanes, propane refilling, EV fast chargers, 24/7 store).
+   - Set mapActions.enableFuel = true.
+2. If the user asks about traffic, road closures, mountain pass conditions, chain controls, or drive times:
+   - Audit the route and transit alerts.
+   - Include 'transitAlerts' advising on delays and detours.
+   - Set mapActions.enableTraffic = true.
+3. If the user asks about camping, wilderness, weather, or stargazing:
+   - Recommend the best matching campsites using exact 'id' and 'name' from the Visible Campsites list.
+   - Set mapActions.enableRadar = true if rain/storm/radar is mentioned.
+4. Always be tactical, helpful, knowledgeable, and proactive. Never say "I recommend searching for a different type of location or using a different resource". If a destination is outside the active viewport, provide an overview and recommend the closest available options.
 
 Return strict valid JSON ONLY in this format:
 {
   "greeting": "Mason here! ...",
   "summaryIntel": "Field summary of your tactical findings tailored to the user's objective...",
   "mapActions": {
-    "enableRadar": boolean (true if user asks about rain, clouds, precipitation, storms, or weather radar),
-    "flyTo": { "lat": number, "lng": number, "zoom": number } (optional: only if user explicitly asks to view/travel to a destination like Yosemite, Joshua Tree, Lake Tahoe, etc.),
-    "focusedCampsiteId": "exact id of your #1 pick from the visible list"
+    "enableRadar": boolean,
+    "enableTraffic": boolean,
+    "enableFuel": boolean,
+    "flyTo": { "lat": number, "lng": number, "zoom": number } (optional),
+    "focusedCampsiteId": "exact id from visible campsites list (optional)",
+    "focusedFuelStationId": "exact id from visible gas stations list (optional)"
   },
   "recommendations": [
     {
-      "id": "exact id from the visible list",
-      "name": "exact name from the visible list",
+      "id": "exact id from visible campsites",
+      "name": "exact campsite name",
       "tacticalScore": 95,
       "titleReason": "Short feature highlight",
-      "masonVerdict": "Why you chose this spot based on terrain, verified amenities, and weather metrics",
+      "masonVerdict": "Why you chose this spot based on terrain, amenities, and weather metrics",
       "weatherBadge": "74°F // 6 MPH"
+    }
+  ],
+  "fuelRecommendations": [
+    {
+      "id": "exact id from visible gas stations",
+      "name": "station name",
+      "brand": "Chevron/Love's/Shell",
+      "recommendationReason": "Verified high-flow diesel & propane refill island with 24/7 store",
+      "topFeatures": ["Diesel", "Propane Refill", "24/7 Mart"]
     }
   ]
 }`;
 
-    const userMessage = `User Mission Goal: "${userGoal || 'Best overall campsite'}"
+    const userMessage = `User Mission Goal: "${userGoal || 'Best overall campsite and route intel'}"
 
-Visible Campsites in Sector:
-${JSON.stringify(visibleSites.slice(0, 20), null, 2)}`;
+[VISIBLE CAMPSITES IN SECTOR]:
+${JSON.stringify(visibleSites.slice(0, 15), null, 2)}
+
+[VISIBLE GAS STATIONS & REFUELING OUTPOSTS]:
+${JSON.stringify(visibleFuel.slice(0, 15), null, 2)}
+
+[ACTIVE TRANSIT & HIGHWAY INCIDENTS]:
+${JSON.stringify(transitAlerts.slice(0, 10), null, 2)}`;
 
     const postPayload = JSON.stringify({
       model: 'llama-3.3-70b-versatile',
@@ -12980,8 +13014,8 @@ ${JSON.stringify(visibleSites.slice(0, 20), null, 2)}`;
         { role: 'user', content: userMessage }
       ],
       response_format: { type: 'json_object' },
-      temperature: 0.6,
-      max_tokens: 1200
+      temperature: 0.5,
+      max_tokens: 1400
     });
 
     const req = https.request({
@@ -12994,7 +13028,7 @@ ${JSON.stringify(visibleSites.slice(0, 20), null, 2)}`;
         'User-Agent': 'Camprunners/1.0',
         'Content-Length': Buffer.byteLength(postPayload)
       },
-      timeout: 8000
+      timeout: 8500
     }, (res) => {
       let b = '';
       res.on('data', chunk => b += chunk);
@@ -13038,7 +13072,13 @@ export default function dyrtScraperPlugin(): Plugin {
           req.on('end', async () => {
             try {
               const data = JSON.parse(body);
-              const result = await queryGroqAdvisor(data.visibleSites || [], data.userGoal || '', data.apiKey);
+              const result = await queryGroqAdvisor(
+                data.visibleSites || [],
+                data.userGoal || '',
+                data.visibleFuel || [],
+                data.transitAlerts || [],
+                data.apiKey
+              );
               res.setHeader('Content-Type', 'application/json');
               res.end(JSON.stringify(result || { error: 'fallback' }));
             } catch {

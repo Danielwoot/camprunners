@@ -417,17 +417,39 @@ export async function queryMasonAdvisor(
       amenities: (c.amenities || []).slice(0, 6)
     }));
 
+    const fuelSubset = (context?.fuelStations || []).slice(0, 15).map(f => ({
+      id: f.id,
+      name: f.name,
+      brand: f.brand,
+      address: f.address,
+      highwayRef: f.highwayRef,
+      hasDiesel: f.hasDiesel,
+      hasPropane: f.hasPropane,
+      hasEVCharging: f.hasEVCharging,
+      isOpen24Hours: f.isOpen24Hours
+    }));
+
+    const transitSubset = (context?.transitAlerts || []).slice(0, 10).map(t => ({
+      id: t.id,
+      highway: t.highway,
+      agency: t.agency,
+      alertType: t.alertType,
+      delayText: t.delayText,
+      description: t.description,
+      recommendedDetour: t.recommendedDetour
+    }));
+
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6500);
+    const timeoutId = setTimeout(() => controller.abort(), 7500);
 
     const response = await fetch('/api/ai/mason-advisor', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         visibleSites: subset,
-        userGoal: userGoal || 'Best overall campsite',
-        fuelCount: context?.fuelStations?.length || 0,
-        trafficAlertCount: context?.transitAlerts?.length || 0
+        visibleFuel: fuelSubset,
+        transitAlerts: transitSubset,
+        userGoal: userGoal || 'Best overall campsite, refueling outposts, and traffic flow'
       }),
       signal: controller.signal
     });
@@ -436,8 +458,8 @@ export async function queryMasonAdvisor(
 
     if (response.ok) {
       const data = await response.json();
-      if (data && !data.error && Array.isArray(data.recommendations) && data.recommendations.length > 0) {
-        const hydratedRecs: MasonRecommendation[] = data.recommendations
+      if (data && !data.error) {
+        const hydratedRecs: MasonRecommendation[] = (Array.isArray(data.recommendations) ? data.recommendations : [])
           .map((rec: any) => {
             if (!rec) return null;
             const recId = String(rec.id || '').trim();
@@ -513,11 +535,27 @@ export async function queryMasonAdvisor(
           })
           .filter((r): r is MasonRecommendation => r !== null && r.campsite !== undefined);
 
-        if (hydratedRecs.length > 0) {
+        // Hydrate fuel recommendations from Groq
+        const hydratedFuel: MasonFuelRecommendation[] = (Array.isArray(data.fuelRecommendations) ? data.fuelRecommendations : [])
+          .map((fRec: any) => {
+            const matchedStation = (context?.fuelStations || []).find(f => f.id === fRec.id || f.name.toLowerCase() === (fRec.name || '').toLowerCase());
+            if (matchedStation) {
+              return {
+                station: matchedStation,
+                recommendationReason: fRec.recommendationReason || 'Verified refueling outpost with high-flow pumps.',
+                topFeatures: matchedStation.amenities.slice(0, 4)
+              };
+            }
+            return null;
+          })
+          .filter((f): f is MasonFuelRecommendation => f !== null);
+
+        if (hydratedRecs.length > 0 || hydratedFuel.length > 0) {
           return {
-            greeting: data.greeting || `Mason here! I've analyzed ${campsites.length} outposts with Groq Llama 3.3.`,
+            greeting: data.greeting || `Mason here! I've analyzed your sector with Groq Llama 3.3.`,
             summaryIntel: data.summaryIntel || `Here are my top recommendations tailored to "${userGoal}".`,
             recommendations: hydratedRecs,
+            fuelRecommendations: hydratedFuel.length > 0 ? hydratedFuel : undefined,
             analyzedCount: campsites.length,
             engineUsed: 'groq-llama-70b',
             mapActions: data.mapActions
