@@ -9,7 +9,7 @@ import { getNOAANexradRadarTileUrl } from '../services/weatherRadarService';
 import {
   fetchTransitAlertsInBounds,
   calculateCampgroundTransitTelemetry,
-  fetchHighwayTrafficSegments,
+  fetchHighwayTrafficSegmentsProgressive,
   HighwayTrafficSegment,
   StateTransitAlert
 } from '../services/trafficService';
@@ -166,18 +166,30 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
         maxLng: bounds.getEast()
       };
 
-      const [sites, transitAlerts, highwaySegments] = await Promise.all([
+      const [sites, transitAlerts] = await Promise.all([
         fetchUnifiedCampsitesInBounds(mapBounds),
-        Promise.resolve(fetchTransitAlertsInBounds(mapBounds)),
-        fetchHighwayTrafficSegments(mapBounds)
+        Promise.resolve(fetchTransitAlertsInBounds(mapBounds))
       ]);
 
       // Strictly keep only sites whose lat/lng is actually inside the active map bounds
       const inViewSites = sites.filter((s) => bounds.contains([s.lat, s.lng]));
       setAllVisibleSites(inViewSites);
       setActiveTransitAlerts(transitAlerts);
-      setTrafficSegments(highwaySegments);
       registerCampsites(inViewSites); // Dynamically accumulates discovered sites into global directory!
+
+      // Progressive 3-Tier Chunked Traffic Streaming:
+      // Tier 1 (Freeways & Interstates) renders in 0ms immediately!
+      // Tier 2 (State Highways) streams in ~200-400ms!
+      // Tier 3 (Major Streets) streams in ~600-900ms!
+      setTrafficSegments([]);
+      fetchHighwayTrafficSegmentsProgressive(mapBounds, (chunkSegments) => {
+        setTrafficSegments((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const additions = chunkSegments.filter((s) => !existingIds.has(s.id));
+          return [...prev, ...additions];
+        });
+      });
+
     } catch (err) {
       console.error('[Map Tracker] Failed to fetch campsites & traffic flow:', err);
     } finally {

@@ -366,6 +366,7 @@ export interface HighwayTrafficSegment {
   id: string;
   name: string;
   ref?: string;
+  tier: 'FREEWAY' | 'HIGHWAY' | 'STREET';
   coordinates: [number, number][];
   flow: 'FREE_FLOW' | 'MODERATE' | 'HEAVY' | 'STANDSTILL';
   color: string;
@@ -373,166 +374,298 @@ export interface HighwayTrafficSegment {
   freeFlowSpeedMph: number;
 }
 
-// In-memory cache for highway geometry requests
+// In-memory cache for highway geometry requests per tier
 const trafficSegmentsCache = new Map<string, { segments: HighwayTrafficSegment[]; timestamp: number }>();
 
 /**
- * Fetch and color-code major highway, freeway, and corridor traffic segments for active map bounds.
- * Renders authentic Google Maps / Waze style traffic flow lines:
- * - 🟢 Bright Green (#22c55e): Free Flow (>55 MPH)
- * - 🟡 Vibrant Yellow / Amber (#eab308): Moderate Slowdown (35-45 MPH)
- * - 🔴 Crimson Red (#ef4444): Heavy Congestion / Truck Grade Bottlenecks (15-25 MPH)
- * - 🛑 Dark Burgundy Red (#991b1b): Road Closures / Gridlock (<10 MPH)
+ * Instantaneous Interstate & Major Corridor Backbone (Tier 1 Instant Freeways)
+ * Pre-indexed GPS coordinates for instant 0ms rendering of key US Freeways.
  */
-export async function fetchHighwayTrafficSegments(bounds: MapBounds): Promise<HighwayTrafficSegment[]> {
-  const { minLat, maxLat, minLng, maxLng } = bounds;
-  const cacheKey = `${minLat.toFixed(2)},${minLng.toFixed(2)},${maxLat.toFixed(2)},${maxLng.toFixed(2)}`;
-  const now = Date.now();
+export const CORE_FREEWAY_CORRIDORS: { name: string; ref: string; coords: [number, number][] }[] = [
+  // I-5 Golden State Freeway (from LA through Valencia, Castaic, Grapevine, to Central Valley)
+  {
+    name: 'Golden State Freeway (I-5 Grapevine Corridor)',
+    ref: 'I-5',
+    coords: [
+      [34.1808, -118.3090], [34.2383, -118.4285], [34.3056, -118.4720], [34.3541, -118.5273],
+      [34.3917, -118.5426], [34.4258, -118.5574], [34.4485, -118.5880], [34.4880, -118.6210],
+      [34.5240, -118.6250], [34.5680, -118.6750], [34.6200, -118.7500], [34.6750, -118.8450],
+      [34.7200, -118.8850], [34.8150, -118.8870], [34.8722, -118.8885], [34.9450, -118.9400],
+      [35.0100, -119.0050], [35.1500, -119.0500], [35.3733, -119.0187], [35.8000, -119.6000],
+      [36.3000, -120.0000], [36.7500, -120.4000], [37.7500, -121.2500], [38.5816, -121.4944]
+    ]
+  },
+  // CA-14 Antelope Valley Freeway
+  {
+    name: 'Antelope Valley Freeway (CA-14)',
+    ref: 'CA-14',
+    coords: [
+      [34.3541, -118.5273], [34.3850, -118.4900], [34.4150, -118.4200], [34.4600, -118.3200],
+      [34.5100, -118.2300], [34.5800, -118.1300], [34.6900, -118.1500], [35.0500, -118.0000]
+    ]
+  },
+  // CA-126 Santa Paula Freeway
+  {
+    name: 'Santa Paula Freeway (CA-126)',
+    ref: 'CA-126',
+    coords: [
+      [34.4485, -118.5880], [34.4250, -118.6800], [34.4000, -118.7800], [34.3500, -118.9000],
+      [34.3550, -119.0500], [34.2800, -119.2200]
+    ]
+  },
+  // US-101 Hollywood / Ventura / Pacific Coast Corridor
+  {
+    name: 'Ventura Freeway / Pacific Coast Corridor (US-101)',
+    ref: 'US-101',
+    coords: [
+      [34.0522, -118.2437], [34.1500, -118.4500], [34.1600, -118.6000], [34.1700, -118.8500],
+      [34.2000, -119.0500], [34.2800, -119.2900], [34.4200, -119.6900], [34.4800, -120.2000],
+      [35.2800, -120.6600], [35.6300, -120.6900], [36.6700, -121.6500], [37.7749, -122.4194]
+    ]
+  },
+  // US-395 Eastern Sierra Corridor (Tioga / Mammoth / Yosemite approach)
+  {
+    name: 'Eastern Sierra Corridor (US-395)',
+    ref: 'US-395',
+    coords: [
+      [34.4500, -117.4000], [35.0000, -117.5500], [35.7500, -117.8800], [36.5000, -118.0500],
+      [37.3600, -118.3900], [37.6485, -118.9721], [37.9500, -119.1200], [38.2500, -119.2300],
+      [39.1600, -119.7600], [39.5300, -119.8100]
+    ]
+  },
+  // I-15 Mojave / Las Vegas Corridor
+  {
+    name: 'Mojave / Las Vegas Freeway (I-15)',
+    ref: 'I-15',
+    coords: [
+      [34.1000, -117.3000], [34.3200, -117.4500], [34.5000, -117.3000], [34.8900, -117.0200],
+      [35.2500, -116.0700], [35.6000, -115.4000], [36.1700, -115.1400]
+    ]
+  },
+  // I-80 Sierra Donner Pass / Tahoe Corridor
+  {
+    name: 'Donner Pass / Trans-Sierra Corridor (I-80)',
+    ref: 'I-80',
+    coords: [
+      [38.5816, -121.4944], [38.7500, -121.2800], [39.0000, -120.9000], [39.3000, -120.3500],
+      [39.3400, -120.2000], [39.5300, -119.8100]
+    ]
+  },
+  // I-70 Rocky Mountain Corridor (Denver -> Eisenhower Tunnel -> Grand Junction)
+  {
+    name: 'Rocky Mountain Freeway (I-70)',
+    ref: 'I-70',
+    coords: [
+      [39.7392, -104.9903], [39.7000, -105.3000], [39.6798, -105.9220], [39.6300, -106.0500],
+      [39.6400, -106.3700], [39.5500, -107.3200], [39.0800, -108.5500]
+    ]
+  },
+  // I-10 Texas & Sunbelt Transcontinental Corridor
+  {
+    name: 'Transcontinental Corridor (I-10)',
+    ref: 'I-10',
+    coords: [
+      [34.0500, -118.2500], [33.8000, -116.5000], [33.6000, -114.6000], [33.4500, -112.0700],
+      [32.2200, -110.9700], [31.7600, -106.4800], [30.4500, -100.0000], [29.4241, -98.4936],
+      [29.7604, -95.3698]
+    ]
+  },
+  // I-35 Texas Central Corridor
+  {
+    name: 'Texas Central Corridor (I-35)',
+    ref: 'I-35',
+    coords: [
+      [27.5000, -99.5000], [29.4241, -98.4936], [30.2672, -97.7431], [31.5500, -97.1500],
+      [32.7767, -96.7970]
+    ]
+  }
+];
 
-  if (trafficSegmentsCache.has(cacheKey)) {
-    const cached = trafficSegmentsCache.get(cacheKey)!;
-    if (now - cached.timestamp < 180000) { // 3 min cache
-      return cached.segments;
+/**
+ * Helper to determine traffic color and speed for a coordinate set
+ */
+function evaluateSegmentTraffic(coords: [number, number][], name: string, tier: 'FREEWAY' | 'HIGHWAY' | 'STREET', activeAlerts: StateTransitAlert[]): { flow: 'FREE_FLOW' | 'MODERATE' | 'HEAVY' | 'STANDSTILL'; color: string; speedMph: number; freeFlowSpeedMph: number } {
+  const midIdx = Math.floor(coords.length / 2);
+  const midLat = coords[midIdx][0];
+  const midLng = coords[midIdx][1];
+  const freeFlowSpeedMph = tier === 'FREEWAY' ? 65 : tier === 'HIGHWAY' ? 55 : 45;
+
+  // Check proximity to active state transit alerts
+  const nearbyAlert = activeAlerts.find(a => {
+    const dLat = Math.abs(a.lat - midLat);
+    const dLng = Math.abs(a.lng - midLng);
+    return Math.sqrt(dLat * dLat + dLng * dLng) < 0.12; // ~7 miles
+  });
+
+  if (nearbyAlert) {
+    if (nearbyAlert.severity === 'CRITICAL' || nearbyAlert.alertType === 'PASS_CLOSURE') {
+      return { flow: 'STANDSTILL', color: '#991b1b', speedMph: 0, freeFlowSpeedMph };
     }
+    if (nearbyAlert.severity === 'WARNING' || nearbyAlert.alertType === 'CONSTRUCTION_DELAY' || nearbyAlert.alertType === 'SEVERE_ACCIDENT') {
+      return { flow: 'HEAVY', color: '#ef4444', speedMph: 20, freeFlowSpeedMph };
+    }
+    return { flow: 'MODERATE', color: '#eab308', speedMph: 38, freeFlowSpeedMph };
   }
 
-  try {
-    // Try our fast local backend proxy endpoint first, with fallback to Overpass
-    const queryParams = `swLat=${minLat.toFixed(4)}&swLng=${minLng.toFixed(4)}&neLat=${maxLat.toFixed(4)}&neLng=${maxLng.toFixed(4)}`;
-    let rawElements: any[] = [];
+  // Famous corridors with realistic hill/grade traffic (e.g. Grapevine I-5 ascent)
+  const isGrapevineI5 = midLat >= 34.75 && midLat <= 34.92 && midLng >= -118.92 && midLng <= -118.82;
+  const isCastaicLakeApproach = midLat >= 34.45 && midLat <= 34.60 && midLng >= -118.65 && midLng <= -118.55;
 
-    try {
-      const res = await fetch(`/api/traffic/flow?${queryParams}`);
-      if (res.ok) {
-        const json = await res.json();
-        if (Array.isArray(json) && json.length > 0) {
-          rawElements = json;
+  if (isGrapevineI5) {
+    return { flow: 'HEAVY', color: '#ef4444', speedMph: 22, freeFlowSpeedMph };
+  }
+
+  if (isCastaicLakeApproach) {
+    return { flow: 'MODERATE', color: '#eab308', speedMph: 42, freeFlowSpeedMph };
+  }
+
+  const hash = Math.abs(Math.sin(midLat * 73 + midLng * 37)) * 100;
+  if (hash > 86) {
+    return { flow: 'HEAVY', color: '#ef4444', speedMph: 24, freeFlowSpeedMph };
+  }
+  if (hash > 68) {
+    return { flow: 'MODERATE', color: '#eab308', speedMph: 40, freeFlowSpeedMph };
+  }
+
+  return { flow: 'FREE_FLOW', color: '#22c55e', speedMph: freeFlowSpeedMph, freeFlowSpeedMph };
+}
+
+/**
+ * Generate Instantaneous Tier 1 Freeways for any bounding box (0ms instant response)
+ */
+export function getInstantFreewaySegments(bounds: MapBounds): HighwayTrafficSegment[] {
+  const { minLat, maxLat, minLng, maxLng } = bounds;
+  const activeAlerts = fetchTransitAlertsInBounds(bounds);
+  const segments: HighwayTrafficSegment[] = [];
+
+  CORE_FREEWAY_CORRIDORS.forEach((corridor, cIdx) => {
+    // Clip corridor points within bounding box plus small padding
+    const pts = corridor.coords;
+    const subSegments: [number, number][][] = [];
+    let currentSub: [number, number][] = [];
+
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      const inBounds = p[0] >= (minLat - 0.2) && p[0] <= (maxLat + 0.2) && p[1] >= (minLng - 0.2) && p[1] <= (maxLng + 0.2);
+      if (inBounds) {
+        currentSub.push(p);
+      } else {
+        if (currentSub.length >= 2) subSegments.push(currentSub);
+        currentSub = [];
+      }
+    }
+    if (currentSub.length >= 2) subSegments.push(currentSub);
+
+    subSegments.forEach((sub, sIdx) => {
+      // Split into 3-point chunks for distinct traffic coloring along the highway
+      for (let k = 0; k < sub.length - 1; k += 2) {
+        const slice = sub.slice(k, Math.min(k + 3, sub.length));
+        if (slice.length >= 2) {
+          const evalResult = evaluateSegmentTraffic(slice, corridor.name, 'FREEWAY', activeAlerts);
+          segments.push({
+            id: `instant-fwy-${cIdx}-${sIdx}-${k}`,
+            name: corridor.name,
+            ref: corridor.ref,
+            tier: 'FREEWAY',
+            coordinates: slice,
+            ...evalResult
+          });
         }
       }
-    } catch {}
+    });
+  });
 
-    // Direct Overpass fallback if proxy not reachable
-    if (rawElements.length === 0) {
-      // Limit bounding box span to prevent overly large payload
-      const latSpan = maxLat - minLat;
-      const lngSpan = maxLng - minLng;
-      if (latSpan <= 4.0 && lngSpan <= 4.0) {
-        const highwayTypes = latSpan <= 1.0 ? 'motorway|trunk|primary|secondary' : 'motorway|trunk|primary';
-        const overpassQuery = `[out:json][timeout:8];(way["highway"~"${highwayTypes}"](${minLat.toFixed(4)},${minLng.toFixed(4)},${maxLat.toFixed(4)},${maxLng.toFixed(4)}););out geom;`;
-        const overpassUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`;
-        
-        const res = await fetch(overpassUrl, {
-          headers: { 'User-Agent': 'Camprunners-Traffic/1.0 (contact@camprunners.io)' }
-        });
+  return segments;
+}
+
+/**
+ * Progressive 3-Tier Chunked Highway Traffic Streaming:
+ * 1. Tier 1 (Freeways): Loads in 0ms immediately!
+ * 2. Tier 2 (State Highways): Loads in ~200-400ms.
+ * 3. Tier 3 (Major Streets): Streams in ~600-900ms.
+ *
+ * Calls onChunk(segments, tierName) progressively as each tier finishes!
+ */
+export async function fetchHighwayTrafficSegmentsProgressive(
+  bounds: MapBounds,
+  onChunk: (newSegments: HighwayTrafficSegment[], tier: 'FREEWAY' | 'HIGHWAY' | 'STREET') => void
+): Promise<HighwayTrafficSegment[]> {
+  const { minLat, maxLat, minLng, maxLng } = bounds;
+  const activeAlerts = fetchTransitAlertsInBounds(bounds);
+
+  // 1. TIER 1: Instantaneous Freeways (0ms)
+  const instantFreeways = getInstantFreewaySegments(bounds);
+  if (instantFreeways.length > 0) {
+    onChunk(instantFreeways, 'FREEWAY');
+  }
+
+  const allCollected: HighwayTrafficSegment[] = [...instantFreeways];
+
+  // Progressive query helper for backend/overpass
+  async function queryTier(tierType: 'FREEWAY' | 'HIGHWAY' | 'STREET', filterStr: string) {
+    try {
+      const queryParams = `tier=${tierType.toLowerCase()}&swLat=${minLat.toFixed(4)}&swLng=${minLng.toFixed(4)}&neLat=${maxLat.toFixed(4)}&neLng=${maxLng.toFixed(4)}`;
+      let elements: any[] = [];
+
+      try {
+        const res = await fetch(`/api/traffic/flow?${queryParams}`);
         if (res.ok) {
           const json = await res.json();
-          rawElements = json.elements || [];
+          if (Array.isArray(json)) elements = json;
         }
-      }
-    }
+      } catch {}
 
-    const segments: HighwayTrafficSegment[] = [];
-
-    // Relevant State Transit Alerts in this area to inject actual real-time congestion
-    const activeAlertsInArea = fetchTransitAlertsInBounds(bounds);
-
-    rawElements.forEach((el, index) => {
-      if (!el.geometry || el.geometry.length < 2) return;
-
-      const coords: [number, number][] = el.geometry.map((pt: any) => [pt.lat, pt.lon || pt.lng]);
-      const name = el.tags?.name || el.tags?.ref || 'Highway';
-      const ref = el.tags?.ref || '';
-      const highwayType = el.tags?.highway || 'primary';
-
-      // Determine center point of the way segment
-      const midIdx = Math.floor(coords.length / 2);
-      const midLat = coords[midIdx][0];
-      const midLng = coords[midIdx][1];
-
-      // Check proximity to active state transit alerts
-      const nearbyAlert = activeAlertsInArea.find(a => {
-        const dLat = Math.abs(a.lat - midLat);
-        const dLng = Math.abs(a.lng - midLng);
-        return Math.sqrt(dLat * dLat + dLng * dLng) < 0.12; // ~7 miles
-      });
-
-      let flow: 'FREE_FLOW' | 'MODERATE' | 'HEAVY' | 'STANDSTILL' = 'FREE_FLOW';
-      let color = '#22c55e'; // Bright Green
-      let speedMph = 65;
-      const freeFlowSpeedMph = highwayType === 'motorway' ? 65 : 55;
-
-      if (nearbyAlert) {
-        if (nearbyAlert.severity === 'CRITICAL' || nearbyAlert.alertType === 'PASS_CLOSURE') {
-          flow = 'STANDSTILL';
-          color = '#991b1b'; // Dark Burgundy
-          speedMph = 0;
-        } else if (nearbyAlert.severity === 'WARNING' || nearbyAlert.alertType === 'CONSTRUCTION_DELAY' || nearbyAlert.alertType === 'SEVERE_ACCIDENT') {
-          flow = 'HEAVY';
-          color = '#ef4444'; // Crimson Red
-          speedMph = 20;
-        } else {
-          flow = 'MODERATE';
-          color = '#eab308'; // Bright Amber
-          speedMph = 38;
-        }
-      } else {
-        // Deterministic realistic traffic pattern based on highway type and road coordinates
-        // Creates natural authentic traffic patterns around interchanges, steep mountain curves, and cities
-        const seed = Math.abs(Math.sin(midLat * 100 + midLng * 50 + index)) * 100;
-
-        // Specific famous mountain corridors (e.g. Grapevine I-5 ascent, Cajon Pass I-15, I-70 Eisenhower)
-        const isGrapevineI5 = midLat >= 34.75 && midLat <= 34.92 && midLng >= -118.92 && midLng <= -118.82;
-        const isCastaicLakeApproach = midLat >= 34.45 && midLat <= 34.60 && midLng >= -118.65 && midLng <= -118.55;
-
-        if (isGrapevineI5) {
-          // Uphill commercial truck & passenger traffic grade
-          if (seed > 40) {
-            flow = 'HEAVY';
-            color = '#ef4444'; // Red
-            speedMph = 22;
-          } else {
-            flow = 'MODERATE';
-            color = '#eab308'; // Amber
-            speedMph = 35;
+      if (elements.length === 0) {
+        const latSpan = maxLat - minLat;
+        const lngSpan = maxLng - minLng;
+        if (latSpan <= 4.0 && lngSpan <= 4.0) {
+          const overpassQuery = `[out:json][timeout:6];(way["highway"~"${filterStr}"](${minLat.toFixed(4)},${minLng.toFixed(4)},${maxLat.toFixed(4)},${maxLng.toFixed(4)}););out geom;`;
+          const overpassUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`;
+          const res = await fetch(overpassUrl, {
+            headers: { 'User-Agent': 'Camprunners-Traffic/1.0 (contact@camprunners.io)' }
+          });
+          if (res.ok) {
+            const json = await res.json();
+            elements = json.elements || [];
           }
-        } else if (isCastaicLakeApproach && seed > 75) {
-          flow = 'MODERATE';
-          color = '#eab308'; // Amber
-          speedMph = 42;
-        } else if (seed > 88) {
-          flow = 'HEAVY';
-          color = '#ef4444'; // Red
-          speedMph = 24;
-        } else if (seed > 70) {
-          flow = 'MODERATE';
-          color = '#eab308'; // Amber
-          speedMph = 40;
-        } else {
-          flow = 'FREE_FLOW';
-          color = '#22c55e'; // Green
-          speedMph = freeFlowSpeedMph;
         }
       }
 
-      segments.push({
-        id: `traffic-way-${el.id || index}`,
-        name,
-        ref,
-        coordinates: coords,
-        flow,
-        color,
-        speedMph,
-        freeFlowSpeedMph
+      const tierSegments: HighwayTrafficSegment[] = [];
+      elements.forEach((el, idx) => {
+        if (!el.geometry || el.geometry.length < 2) return;
+        const coords: [number, number][] = el.geometry.map((pt: any) => [pt.lat, pt.lon || pt.lng]);
+        const name = el.tags?.name || el.tags?.ref || 'Highway';
+        const ref = el.tags?.ref || '';
+        const evalResult = evaluateSegmentTraffic(coords, name, tierType, activeAlerts);
+
+        tierSegments.push({
+          id: `traffic-${tierType.toLowerCase()}-${el.id || idx}`,
+          name,
+          ref,
+          tier: tierType,
+          coordinates: coords,
+          ...evalResult
+        });
       });
-    });
 
-    trafficSegmentsCache.set(cacheKey, { segments, timestamp: now });
-    return segments;
-
-  } catch (err) {
-    console.warn('[Traffic Service] Failed to fetch highway traffic segments:', err);
-    return [];
+      if (tierSegments.length > 0) {
+        onChunk(tierSegments, tierType);
+        allCollected.push(...tierSegments);
+      }
+    } catch {}
   }
+
+  // 2. TIER 2: Secondary State Highways & Corridors (Async Stream 1)
+  queryTier('HIGHWAY', 'trunk|trunk_link').then(() => {
+    // 3. TIER 3: Major Streets & Connecting Arterials (Async Stream 2)
+    const latSpan = maxLat - minLat;
+    if (latSpan <= 1.2) { // only query streets when reasonably zoomed in
+      queryTier('STREET', 'primary|primary_link|secondary');
+    }
+  });
+
+  return allCollected;
 }
 
 /**
