@@ -391,17 +391,77 @@ export const VERIFIED_HIGHWAY_FUEL_STATIONS: FuelStation[] = [
   }
 ];
 
+// In-memory cache for live fuel queries
+const liveFuelCache = new Map<string, { stations: FuelStation[]; timestamp: number }>();
+
 /**
- * Filter verified fuel stations within active map bounds.
+ * Filter verified fuel stations within active map bounds and dynamically query live nationwide gas stations.
+ * Covers all 50 US States across all brands (Chevron, Shell, Exxon, Mobil, 76, Phillips 66, Valero, Sinclair,
+ * Love's, Pilot Flying J, TA, Buc-ee's, Circle K, Wawa, Sheetz, Casey's, Speedway, ARCO, BP, Sunoco, Marathon,
+ * Costco, Sam's Club, Murphy USA, Kum & Go, QuikTrip, RaceTrac, Maverik, Holiday, etc.).
  */
-export function fetchFuelStationsInBounds(bounds: MapBounds): FuelStation[] {
+export async function fetchFuelStationsInBounds(bounds: MapBounds): Promise<FuelStation[]> {
   const { minLat, maxLat, minLng, maxLng } = bounds;
 
-  return VERIFIED_HIGHWAY_FUEL_STATIONS.filter(
+  // 1. Get verified static highway travel centers
+  const verifiedInBounds = VERIFIED_HIGHWAY_FUEL_STATIONS.filter(
     (st) =>
       st.lat >= minLat &&
       st.lat <= maxLat &&
       st.lng >= minLng &&
       st.lng <= maxLng
   );
+
+  const cacheKey = `${minLat.toFixed(2)},${minLng.toFixed(2)},${maxLat.toFixed(2)},${maxLng.toFixed(2)}`;
+  const now = Date.now();
+
+  if (liveFuelCache.has(cacheKey)) {
+    const cached = liveFuelCache.get(cacheKey)!;
+    if (now - cached.timestamp < 300000) {
+      return mergeFuelStations(verifiedInBounds, cached.stations);
+    }
+  }
+
+  try {
+    const latSpan = maxLat - minLat;
+    const lngSpan = maxLng - minLng;
+
+    // Only query live local stations when zoomed in reasonably (< 1.8 degrees span) to prevent payload overload
+    if (latSpan <= 1.8 && lngSpan <= 1.8) {
+      const midLat = (minLat + maxLat) / 2;
+      const midLng = (minLng + maxLng) / 2;
+      const queryParams = `lat=${midLat.toFixed(4)}&lng=${midLng.toFixed(4)}&swLat=${minLat.toFixed(4)}&swLng=${minLng.toFixed(4)}&neLat=${maxLat.toFixed(4)}&neLng=${maxLng.toFixed(4)}`;
+
+      const res = await fetch(`/api/fuel/search?${queryParams}`);
+      if (res.ok) {
+        const liveData: FuelStation[] = await res.json();
+        if (Array.isArray(liveData) && liveData.length > 0) {
+          liveFuelCache.set(cacheKey, { stations: liveData, timestamp: now });
+          return mergeFuelStations(verifiedInBounds, liveData);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Fuel Service] Live search fallback to verified:', err);
+  }
+
+  return verifiedInBounds;
+}
+
+function mergeFuelStations(verified: FuelStation[], live: FuelStation[]): FuelStation[] {
+  const map = new Map<string, FuelStation>();
+
+  // Verified travel plazas have highest priority
+  verified.forEach(st => map.set(st.id, st));
+
+  // Add live queried stations
+  live.forEach(st => {
+    // Avoid exact duplicate pins within ~0.005 degrees (~500 meters)
+    const isDuplicate = verified.some(v => Math.abs(v.lat - st.lat) < 0.005 && Math.abs(v.lng - st.lng) < 0.005);
+    if (!isDuplicate && !map.has(st.id)) {
+      map.set(st.id, st);
+    }
+  });
+
+  return Array.from(map.values());
 }

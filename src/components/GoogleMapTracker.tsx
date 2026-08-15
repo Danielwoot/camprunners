@@ -172,7 +172,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
       const [sites, transitAlerts, fuelStops] = await Promise.all([
         fetchUnifiedCampsitesInBounds(mapBounds),
         Promise.resolve(fetchTransitAlertsInBounds(mapBounds)),
-        Promise.resolve(fetchFuelStationsInBounds(mapBounds))
+        fetchFuelStationsInBounds(mapBounds)
       ]);
 
       // Strictly keep only sites whose lat/lng is actually inside the active map bounds
