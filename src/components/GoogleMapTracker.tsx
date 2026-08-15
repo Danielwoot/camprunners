@@ -1,19 +1,19 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import * as maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import { useCamprunner } from '../context/CamprunnerContext';
 import { DyrtCampsite } from '../data/dyrtCampsites';
 import { fetchUnifiedCampsitesInBounds } from '../services/dyrtService';
 import { getNOAANexradRadarTileUrl } from '../services/weatherRadarService';
 import {
   getRealTimeTrafficTileUrl,
-  getTrafficSubdomains,
   fetchTransitAlertsInBounds,
   calculateCampgroundTransitTelemetry,
   StateTransitAlert
 } from '../services/trafficService';
 import { fetchFuelStationsInBounds, FuelStation } from '../services/fuelService';
+import { getCamprunnersVectorStyle } from '../services/maplibreStyle';
 import { MasonAIAdvisorDrawer } from './MasonAIAdvisorDrawer';
 
 interface GoogleMapTrackerProps {
@@ -23,12 +23,10 @@ interface GoogleMapTrackerProps {
 export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass = 'h-[calc(100vh-64px)]' }) => {
   const navigate = useNavigate();
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<L.Map | null>(null);
-  const markersGroupRef = useRef<L.LayerGroup | null>(null);
-  const radarLayerRef = useRef<L.TileLayer | null>(null);
-  const trafficLayerRef = useRef<L.TileLayer | null>(null);
-  const transitMarkersGroupRef = useRef<L.LayerGroup | null>(null);
-  const fuelMarkersGroupRef = useRef<L.LayerGroup | null>(null);
+  const mapInstanceRef = useRef<maplibregl.Map | null>(null);
+  const campsiteMarkersRef = useRef<maplibregl.Marker[]>([]);
+  const transitMarkersRef = useRef<maplibregl.Marker[]>([]);
+  const fuelMarkersRef = useRef<maplibregl.Marker[]>([]);
   const sidebarContainerRef = useRef<HTMLDivElement>(null);
 
   const { registerCampsites, setSelectedCampsite } = useCamprunner();
@@ -71,8 +69,10 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
     }
 
     if (actions.flyTo && mapInstanceRef.current) {
-      mapInstanceRef.current.flyTo([actions.flyTo.lat, actions.flyTo.lng], actions.flyTo.zoom || 11, {
-        duration: 1.8
+      mapInstanceRef.current.flyTo({
+        center: [actions.flyTo.lng, actions.flyTo.lat],
+        zoom: actions.flyTo.zoom || 11,
+        speed: 1.2
       });
     }
 
@@ -81,7 +81,11 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
       if (found) {
         setActiveSite(found);
         if (mapInstanceRef.current && !actions.flyTo) {
-          mapInstanceRef.current.setView([found.lat, found.lng], 13, { animate: true });
+          mapInstanceRef.current.flyTo({
+            center: [found.lng, found.lat],
+            zoom: 13,
+            speed: 1.2
+          });
         }
       }
     }
@@ -91,7 +95,11 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
       if (foundFuel) {
         setSelectedFuelStation(foundFuel);
         if (mapInstanceRef.current && !actions.flyTo) {
-          mapInstanceRef.current.setView([foundFuel.lat, foundFuel.lng], 14, { animate: true });
+          mapInstanceRef.current.flyTo({
+            center: [foundFuel.lng, foundFuel.lat],
+            zoom: 14,
+            speed: 1.2
+          });
         }
       }
     }
@@ -100,22 +108,11 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
   // Debounce ref for map pan/zoom fetching
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Initialize Leaflet Map Instance
+  // Initialize MapLibre GL Vector Map Instance
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
 
-    // Dark HUD Basemap layer
-    const darkTileLayer = L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-      {
-        attribution: '&copy; <a href="https://carto.com/">CARTO</a>, &copy; OpenStreetMap',
-        subdomains: 'abcd',
-        maxZoom: 19
-      }
-    );
-
-    // Load persisted map position or default to Yosemite National Park, California
-    let initialCenter: [number, number] = [37.7456, -119.5936]; // Yosemite National Park, CA
+    let initialCenter: [number, number] = [-119.5936, 37.7456]; // [lng, lat] for Yosemite National Park, CA
     let initialZoom = 9;
 
     try {
@@ -123,58 +120,69 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
       if (savedView) {
         const parsed = JSON.parse(savedView);
         if (Array.isArray(parsed.center) && parsed.center.length === 2 && typeof parsed.zoom === 'number') {
-          initialCenter = [parsed.center[0], parsed.center[1]];
+          initialCenter = [parsed.center[1], parsed.center[0]];
           initialZoom = parsed.zoom;
         }
       }
     } catch {}
 
-    const map = L.map(mapContainerRef.current, {
-      center: initialCenter,
-      zoom: initialZoom,
-      zoomControl: false,
-      layers: [darkTileLayer]
-    });
+    let isMounted = true;
 
-    mapInstanceRef.current = map;
-    markersGroupRef.current = L.layerGroup().addTo(map);
-    transitMarkersGroupRef.current = L.layerGroup().addTo(map);
-    fuelMarkersGroupRef.current = L.layerGroup().addTo(map);
+    async function initMap() {
+      const vectorStyle = await getCamprunnersVectorStyle();
+      if (!isMounted || !mapContainerRef.current) return;
 
-    // Initial fetch when map loads
-    fetchCampsitesForCurrentBounds(map);
+      const map = new maplibregl.Map({
+        container: mapContainerRef.current,
+        style: vectorStyle,
+        center: initialCenter,
+        zoom: initialZoom,
+        attributionControl: false
+      });
 
-    // Handle Map Movement (Pan & Zoom) with debounce and persist viewport
-    map.on('moveend', () => {
-      try {
-        const center = map.getCenter();
-        const zoom = map.getZoom();
-        sessionStorage.setItem(
-          'camprunners_map_view',
-          JSON.stringify({ center: [center.lat, center.lng], zoom })
-        );
-      } catch {}
+      mapInstanceRef.current = map;
 
-      if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
-      fetchTimeoutRef.current = setTimeout(() => {
+      map.on('load', () => {
+        if (!isMounted) return;
         fetchCampsitesForCurrentBounds(map);
-      }, 350);
-    });
+      });
 
-    // Close details card on clicking empty map
-    map.on('click', () => {
-      setActiveSite(null);
-    });
+      map.on('moveend', () => {
+        if (!isMounted) return;
+        try {
+          const center = map.getCenter();
+          const zoom = map.getZoom();
+          sessionStorage.setItem(
+            'camprunners_map_view',
+            JSON.stringify({ center: [center.lat, center.lng], zoom })
+          );
+        } catch {}
+
+        if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
+        fetchTimeoutRef.current = setTimeout(() => {
+          fetchCampsitesForCurrentBounds(map);
+        }, 350);
+      });
+
+      map.on('click', () => {
+        setActiveSite(null);
+      });
+    }
+
+    initMap();
 
     return () => {
+      isMounted = false;
       if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
-      map.remove();
-      mapInstanceRef.current = null;
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
     };
   }, []);
 
-  // Fetch unified campgrounds, Hipcamp retreats, Campspot resorts, fuel stations, and 50-State transit authority alerts in bounds
-  const fetchCampsitesForCurrentBounds = async (map: L.Map) => {
+  // Fetch unified campgrounds, Hipcamp retreats, Campspot resorts, fuel stations, and 50-State transit alerts
+  const fetchCampsitesForCurrentBounds = async (map: maplibregl.Map) => {
     try {
       setIsLoading(true);
       const bounds = map.getBounds();
@@ -192,11 +200,11 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
       ]);
 
       // Strictly keep only sites whose lat/lng is actually inside the active map bounds
-      const inViewSites = sites.filter((s) => bounds.contains([s.lat, s.lng]));
+      const inViewSites = sites.filter((s) => bounds.contains([s.lng, s.lat]));
       setAllVisibleSites(inViewSites);
       setActiveTransitAlerts(transitAlerts);
       setVisibleFuelStations(fuelStops);
-      registerCampsites(inViewSites); // Dynamically accumulates discovered sites into global directory!
+      registerCampsites(inViewSites);
 
     } catch (err) {
       console.error('[Map Tracker] Failed to fetch campsites & transit alerts:', err);
@@ -209,13 +217,11 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
   const visibleCampsites = useMemo(() => {
     let list = [...allVisibleSites];
 
-    // Filter strictly to current viewport map bounds
     if (mapInstanceRef.current) {
       const b = mapInstanceRef.current.getBounds();
-      list = list.filter((s) => b.contains([s.lat, s.lng]));
+      list = list.filter((s) => b.contains([s.lng, s.lat]));
     }
 
-    // Filter by provider
     if (selectedProvider === 'PUBLIC') {
       list = list.filter((s) => s.source === 'public' || (!s.source && s.source !== 'hipcamp' && s.source !== 'campspot'));
     } else if (selectedProvider === 'HIPCAMP') {
@@ -244,63 +250,75 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
     return list;
   }, [allVisibleSites, searchFilter, sortBy, selectedProvider]);
 
-  // Handle Live NOAA Radar Overlay (works at all zoom levels 0-19+)
+  // Handle Live NOAA Radar Overlay Layer
   useEffect(() => {
-    if (!mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+
+    const radarTileUrl = getNOAANexradRadarTileUrl();
 
     if (showRadar) {
-      if (!radarLayerRef.current) {
-        const radarTileUrl = getNOAANexradRadarTileUrl();
-        const radar = L.tileLayer(radarTileUrl, {
-          opacity: 0.75,
-          zIndex: 10,
-          maxZoom: 19,
-          attribution: 'NOAA / Iowa Environmental Mesonet NEXRAD'
+      if (!map.getSource('radar-source')) {
+        map.addSource('radar-source', {
+          type: 'raster',
+          tiles: [radarTileUrl],
+          tileSize: 256
         });
-
-        radar.addTo(mapInstanceRef.current);
-        radarLayerRef.current = radar;
-        setRadarTimeLabel('NOAA NEXRAD (LIVE)');
       }
+      if (!map.getLayer('radar-layer')) {
+        map.addLayer({
+          id: 'radar-layer',
+          type: 'raster',
+          source: 'radar-source',
+          paint: { 'raster-opacity': 0.75 }
+        });
+      }
+      setRadarTimeLabel('NOAA NEXRAD (LIVE)');
     } else {
-      if (radarLayerRef.current) {
-        mapInstanceRef.current.removeLayer(radarLayerRef.current);
-        radarLayerRef.current = null;
-      }
+      if (map.getLayer('radar-layer')) map.removeLayer('radar-layer');
+      if (map.getSource('radar-source')) map.removeSource('radar-source');
     }
   }, [showRadar]);
 
-  // Handle Real-Time High-Speed CDN Traffic Flow Layer (Approach 1 - 0ms latency)
+  // Handle Real-Time High-Speed Traffic Flow Layer
   useEffect(() => {
-    if (!mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
+    if (!map || !map.isStyleLoaded()) return;
 
     if (showTraffic) {
-      if (!trafficLayerRef.current) {
-        const trafficTileUrl = getRealTimeTrafficTileUrl();
-        const trafficLayer = L.tileLayer(trafficTileUrl, {
-          subdomains: getTrafficSubdomains(),
-          opacity: 0.85,
-          zIndex: 8,
-          maxZoom: 19,
-          attribution: 'Real-Time Traffic Flow'
+      if (!map.getSource('traffic-source')) {
+        map.addSource('traffic-source', {
+          type: 'raster',
+          tiles: [
+            'https://mt0.google.com/vt?lyrs=h,traffic|seconds_into_week:-1&style=15&x={x}&y={y}&z={z}',
+            'https://mt1.google.com/vt?lyrs=h,traffic|seconds_into_week:-1&style=15&x={x}&y={y}&z={z}',
+            'https://mt2.google.com/vt?lyrs=h,traffic|seconds_into_week:-1&style=15&x={x}&y={y}&z={z}',
+            'https://mt3.google.com/vt?lyrs=h,traffic|seconds_into_week:-1&style=15&x={x}&y={y}&z={z}'
+          ],
+          tileSize: 256
         });
-
-        trafficLayer.addTo(mapInstanceRef.current);
-        trafficLayerRef.current = trafficLayer;
+      }
+      if (!map.getLayer('traffic-layer')) {
+        map.addLayer({
+          id: 'traffic-layer',
+          type: 'raster',
+          source: 'traffic-source',
+          paint: { 'raster-opacity': 0.85 }
+        });
       }
     } else {
-      if (trafficLayerRef.current) {
-        mapInstanceRef.current.removeLayer(trafficLayerRef.current);
-        trafficLayerRef.current = null;
-      }
+      if (map.getLayer('traffic-layer')) map.removeLayer('traffic-layer');
+      if (map.getSource('traffic-source')) map.removeSource('traffic-source');
     }
   }, [showTraffic]);
 
-  // Render 50-State Transit Authority & Mountain Pass Incident Pins (Option B)
+  // Render 50-State Transit Authority & Mountain Pass Incident Pins
   useEffect(() => {
-    if (!mapInstanceRef.current || !transitMarkersGroupRef.current) return;
+    const map = mapInstanceRef.current;
+    if (!map) return;
 
-    transitMarkersGroupRef.current.clearLayers();
+    transitMarkersRef.current.forEach((m) => m.remove());
+    transitMarkersRef.current = [];
 
     if (!showTraffic) return;
 
@@ -329,203 +347,154 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
         ? 'air'
         : 'construction';
 
-      const customTransitIcon = L.divIcon({
-        className: 'custom-transit-pin',
-        html: `
-          <div class="group relative flex items-center justify-center cursor-pointer" style="transform: translate(-50%, -50%);">
-            <!-- Pulsing Incident Beacon -->
-            <div style="
-              position: absolute;
-              width: 32px;
-              height: 32px;
-              border-radius: 50%;
-              background: ${alertColor}33;
-              border: 1px dashed ${alertColor};
-              animation: ping 2.5s cubic-bezier(0, 0, 0.2, 1) infinite;
-            "></div>
-
-            <!-- Central Tactical Hexagon/Diamond Badge -->
-            <div style="
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              width: 24px;
-              height: 24px;
-              background: #050505;
-              border: 2px solid ${alertColor};
-              box-shadow: 0 0 12px ${alertColor};
-              border-radius: 4px;
-              color: ${alertColor};
-              font-family: monospace;
-              transform: rotate(45deg);
-              transition: all 0.2s ease;
-            ">
-              <span class="material-symbols-outlined" style="font-size: 14px; transform: rotate(-45deg); font-weight: bold;">
-                ${alertIconSymbol}
-              </span>
-            </div>
-
-            <!-- Route Highway Tag -->
-            <div style="
-              position: absolute;
-              bottom: 22px;
-              left: 50%;
-              transform: translateX(-50%);
-              background: rgba(5, 5, 5, 0.95);
-              border: 1px solid ${alertColor};
-              color: ${alertColor};
-              font-family: monospace;
-              font-size: 9px;
-              font-weight: 900;
-              padding: 2px 6px;
-              border-radius: 2px;
-              white-space: nowrap;
-              pointer-events: none;
-              box-shadow: 0 4px 12px rgba(0,0,0,0.9);
-            ">
-              ${alert.highway}
-            </div>
-          </div>
-        `,
-        iconSize: [26, 26],
-        iconAnchor: [13, 13]
-      });
-
-      const transitMarker = L.marker([alert.lat, alert.lng], { icon: customTransitIcon, zIndexOffset: 500 });
-
-      const transitPopupContent = `
-        <div style="background:#0a0e0e; color:#e5e2e1; font-family:sans-serif; padding:14px; border:2px solid ${alertColor}; min-width:260px; max-width:320px; border-radius:6px; box-shadow: 0 6px 20px rgba(0,0,0,0.95);">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; border-bottom:1px solid #263333; pb:4px;">
-            <span style="color:${alertColor}; font-size:10px; font-weight:bold; font-family:monospace; text-transform:uppercase;">
-              ${alert.agency}
-            </span>
-            <span style="background:${alertColor}; color:#000; font-size:9px; font-weight:900; padding:1px 5px; border-radius:2px; font-family:monospace;">
-              ${alert.alertType.replace('_', ' ')}
-            </span>
-          </div>
-          <div style="color:#ffffff; font-size:14px; font-weight:bold; font-family:'Space Grotesk', sans-serif; margin:4px 0 6px 0; line-height:1.2;">
-            ${alert.highway}
-          </div>
-          <div style="background:#141d1d; border-left:3px solid ${alertColor}; padding:6px 8px; margin-bottom:8px; font-family:monospace; font-size:11px; color:#fcee0a; font-weight:bold;">
-            ⏱️ ${alert.delayText}
-          </div>
-          <p style="color:#cbd5e1; font-size:11px; line-height:1.4; margin-bottom:8px;">
-            ${alert.description}
-          </p>
-          ${alert.recommendedDetour ? `
-            <div style="font-size:10px; font-family:monospace; color:#a3e635; background:#050505; border:1px solid #334155; padding:6px 8px; border-radius:3px;">
-              <span style="color:#fff; font-weight:bold;">RECOMMENDED DETOUR:</span> ${alert.recommendedDetour}
-            </div>
-          ` : ''}
-          <div style="font-family:monospace; font-size:9px; color:#64748b; margin-top:8px; text-align:right;">
-            Source: ${alert.lastUpdated}
-          </div>
+      const el = document.createElement('div');
+      el.className = 'group relative flex items-center justify-center cursor-pointer';
+      el.innerHTML = `
+        <div style="
+          position: absolute;
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background: ${alertColor}33;
+          border: 1px dashed ${alertColor};
+          animation: ping 2.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+        "></div>
+        <div style="
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 24px;
+          height: 24px;
+          background: #050505;
+          border: 2px solid ${alertColor};
+          box-shadow: 0 0 12px ${alertColor};
+          border-radius: 4px;
+          color: ${alertColor};
+          font-family: monospace;
+          transform: rotate(45deg);
+          transition: all 0.2s ease;
+        ">
+          <span class="material-symbols-outlined" style="font-size: 14px; transform: rotate(-45deg); font-weight: bold;">
+            ${alertIconSymbol}
+          </span>
+        </div>
+        <div style="
+          position: absolute;
+          bottom: 22px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: rgba(5, 5, 5, 0.95);
+          border: 1px solid ${alertColor};
+          color: ${alertColor};
+          font-family: monospace;
+          font-size: 9px;
+          font-weight: 900;
+          padding: 2px 6px;
+          border-radius: 2px;
+          white-space: nowrap;
+          pointer-events: none;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.9);
+        ">
+          ${alert.highway}
         </div>
       `;
 
-      transitMarker.bindPopup(transitPopupContent);
-
-      transitMarker.on('click', (e) => {
-        L.DomEvent.stopPropagation(e);
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
         setSelectedTransitAlert(alert);
       });
 
-      transitMarkersGroupRef.current?.addLayer(transitMarker);
+      const marker = new maplibregl.Marker({ element: el })
+        .setLngLat([alert.lng, alert.lat])
+        .addTo(map);
+
+      transitMarkersRef.current.push(marker);
     });
   }, [showTraffic, activeTransitAlerts]);
 
   // Render Interactive Fuel & Gas Stations Layer
   useEffect(() => {
-    if (!mapInstanceRef.current || !fuelMarkersGroupRef.current) return;
+    const map = mapInstanceRef.current;
+    if (!map) return;
 
-    fuelMarkersGroupRef.current.clearLayers();
+    fuelMarkersRef.current.forEach((m) => m.remove());
+    fuelMarkersRef.current = [];
 
     if (!showFuelStations) return;
 
     visibleFuelStations.forEach((station) => {
-      const customFuelIcon = L.divIcon({
-        className: 'custom-fuel-pin',
-        html: `
-          <div class="group relative flex items-center justify-center cursor-pointer" style="transform: translate(-50%, -50%);">
-            <!-- Pulsing Amber Fuel Ring -->
-            <div style="
-              position: absolute;
-              width: 28px;
-              height: 28px;
-              border-radius: 50%;
-              background: rgba(245, 158, 11, 0.2);
-              border: 1px dashed #f59e0b;
-              animation: ping 3s cubic-bezier(0, 0, 0.2, 1) infinite;
-            "></div>
+      const el = document.createElement('div');
+      el.className = 'group relative flex items-center justify-center cursor-pointer';
+      el.innerHTML = `
+        <div style="
+          position: absolute;
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          background: rgba(245, 158, 11, 0.2);
+          border: 1px dashed #f59e0b;
+          animation: ping 3s cubic-bezier(0, 0, 0.2, 1) infinite;
+        "></div>
+        <div style="
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 24px;
+          height: 24px;
+          background: #0f172a;
+          border: 2px solid #f59e0b;
+          box-shadow: 0 0 12px rgba(245, 158, 11, 0.6);
+          border-radius: 50%;
+          color: #f59e0b;
+          font-family: monospace;
+          transition: all 0.2s ease;
+        ">
+          <span class="material-symbols-outlined" style="font-size: 14px; font-weight: bold;">
+            local_gas_station
+          </span>
+        </div>
+        <div style="
+          position: absolute;
+          bottom: 22px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: rgba(5, 5, 5, 0.95);
+          border: 1px solid #f59e0b;
+          color: #f59e0b;
+          font-family: monospace;
+          font-size: 9px;
+          font-weight: 900;
+          padding: 2px 6px;
+          border-radius: 2px;
+          white-space: nowrap;
+          pointer-events: none;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.9);
+        ">
+          ⛽ ${station.brand}
+        </div>
+      `;
 
-            <!-- Central Tactical Circular Fuel Badge -->
-            <div style="
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              width: 24px;
-              height: 24px;
-              background: #0f172a;
-              border: 2px solid #f59e0b;
-              box-shadow: 0 0 12px rgba(245, 158, 11, 0.6);
-              border-radius: 50%;
-              color: #f59e0b;
-              font-family: monospace;
-              transition: all 0.2s ease;
-            ">
-              <span class="material-symbols-outlined" style="font-size: 14px; font-weight: bold;">
-                local_gas_station
-              </span>
-            </div>
-
-            <!-- Brand Tag -->
-            <div style="
-              position: absolute;
-              bottom: 22px;
-              left: 50%;
-              transform: translateX(-50%);
-              background: rgba(5, 5, 5, 0.95);
-              border: 1px solid #f59e0b;
-              color: #f59e0b;
-              font-family: monospace;
-              font-size: 9px;
-              font-weight: 900;
-              padding: 2px 6px;
-              border-radius: 2px;
-              white-space: nowrap;
-              pointer-events: none;
-              box-shadow: 0 4px 12px rgba(0,0,0,0.9);
-            ">
-              ⛽ ${station.brand}
-            </div>
-          </div>
-        `,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12]
-      });
-
-      const fuelMarker = L.marker([station.lat, station.lng], {
-        icon: customFuelIcon,
-        zIndexOffset: 850
-      });
-
-      fuelMarker.on('click', (e) => {
-        L.DomEvent.stopPropagation(e);
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
         setSelectedFuelStation(station);
-        if (mapInstanceRef.current) {
-          mapInstanceRef.current.setView([station.lat, station.lng], 14, { animate: true });
-        }
+        map.flyTo({ center: [station.lng, station.lat], zoom: 14, speed: 1.2 });
       });
 
-      fuelMarkersGroupRef.current?.addLayer(fuelMarker);
+      const marker = new maplibregl.Marker({ element: el })
+        .setLngLat([station.lng, station.lat])
+        .addTo(map);
+
+      fuelMarkersRef.current.push(marker);
     });
   }, [showFuelStations, visibleFuelStations]);
 
-  // Render markers at exact real-world GPS coordinates with tactical radar pulse pins
+  // Render Campsite Markers at exact real-world GPS coordinates with tactical radar pulse pins
   useEffect(() => {
-    if (!mapInstanceRef.current || !markersGroupRef.current) return;
+    const map = mapInstanceRef.current;
+    if (!map) return;
 
-    markersGroupRef.current.clearLayers();
+    campsiteMarkersRef.current.forEach((m) => m.remove());
+    campsiteMarkersRef.current = [];
 
     visibleCampsites.forEach((site) => {
       const isSelected = activeSite?.id === site.id;
@@ -545,114 +514,79 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
       const pulseBg = isSelected
         ? 'rgba(252, 238, 10, 0.25)'
         : isAiTarget
-        ? 'rgba(163, 230, 53, 0.3)'
+        ? 'rgba(163, 230, 53, 0.25)'
         : isHipcamp
-        ? 'rgba(255, 107, 53, 0.25)'
+        ? 'rgba(255, 107, 53, 0.2)'
         : isCampspot
-        ? 'rgba(16, 185, 129, 0.25)'
-        : 'rgba(0, 240, 255, 0.15)';
+        ? 'rgba(16, 185, 129, 0.2)'
+        : 'rgba(0, 240, 255, 0.2)';
 
-      const customIcon = L.divIcon({
-        className: 'custom-map-pin',
-        html: `
-          <div class="group relative flex items-center justify-center cursor-pointer" style="transform: translate(-50%, -50%);">
-            ${isAiTarget ? `
-              <!-- Glowing AI Target Reticle Ring -->
-              <div style="
-                position: absolute;
-                width: 44px;
-                height: 44px;
-                border-radius: 50%;
-                border: 2px dashed #a3e635;
-                animation: spin 8s linear infinite;
-                box-shadow: 0 0 15px rgba(163, 230, 53, 0.5);
-              "></div>
-            ` : ''}
+      const badgeIcon = isHipcamp ? 'bolt' : isCampspot ? 'hotel' : 'camping';
 
-            <!-- Radar Beacon Pulse -->
-            <div style="
-              position: absolute;
-              width: ${isSelected || isAiTarget ? '32px' : '20px'};
-              height: ${isSelected || isAiTarget ? '32px' : '20px'};
-              border-radius: ${isHipcamp ? '4px' : isCampspot ? '6px' : '50%'};
-              background: ${pulseBg};
-              border: 1px solid ${mainColor};
-              animation: ${isSelected || isAiTarget ? 'ping 2s cubic-bezier(0, 0, 0.2, 1) infinite' : 'pulse 2.5s infinite'};
-              transform: ${isHipcamp ? 'rotate(45deg)' : isCampspot ? 'rotate(30deg)' : 'none'};
-            "></div>
-
-            <!-- Central Tactical Pin Dot -->
-            <div style="
-              width: ${isSelected || isAiTarget ? '14px' : '10px'};
-              height: ${isSelected || isAiTarget ? '14px' : '10px'};
-              border-radius: ${isHipcamp ? '2px' : isCampspot ? '3px' : '50%'};
-              background: ${mainColor};
-              box-shadow: 0 0 ${isSelected ? '12px #fcee0a' : isAiTarget ? '14px #a3e635' : isHipcamp ? '8px #ff6b35' : isCampspot ? '8px #10b981' : '8px #00f0ff'};
-              border: 2px solid #050505;
-              transform: ${isHipcamp ? 'rotate(45deg)' : isCampspot ? 'rotate(30deg)' : 'none'};
-              transition: all 0.2s ease;
-            "></div>
-
-            <!-- Hover / Selected / AI Mini Tag -->
-            <div style="
-              position: absolute;
-              bottom: 18px;
-              left: 50%;
-              transform: translateX(-50%);
-              background: rgba(5, 5, 5, 0.95);
-              border: 1px solid ${mainColor};
-              color: ${mainColor};
-              font-family: monospace;
-              font-size: 10px;
-              font-weight: bold;
-              padding: 2px 6px;
-              border-radius: 2px;
-              white-space: nowrap;
-              pointer-events: none;
-              box-shadow: 0 4px 12px rgba(0,0,0,0.8);
-              display: ${isSelected || isAiTarget ? 'block' : 'none'};
-            " class="group-hover:!block">
-              ${isAiTarget ? '🎯 ' : isHipcamp ? '⚡ ' : isCampspot ? '⬡ ' : '⛺ '}${site.name}
-            </div>
-          </div>
-        `,
-        iconSize: [20, 20],
-        iconAnchor: [10, 10]
-      });
-
-      const marker = L.marker([site.lat, site.lng], { icon: customIcon });
-
-      const popupPrice = (!site.priceDisplay || site.priceDisplay.includes('$0') || site.priceDisplay.toLowerCase().includes('free') || site.pricePerNight === 0)
-        ? 'See original list'
-        : site.priceDisplay;
-
-      const popupColor = isCampspot ? '#10b981' : isHipcamp ? '#ff6b35' : '#00f0ff';
-      const popupBadgeText = isCampspot ? 'CAMPSPOT' : isHipcamp ? 'HIPCAMP' : 'PUBLIC';
-
-      const popupContent = `
-        <div style="background:#0c1212; color:#e5e2e1; font-family:sans-serif; padding:12px; border:1px solid ${popupColor}; min-width:220px; border-radius:6px; box-shadow: 0 4px 16px rgba(0,0,0,0.8);">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-            <span style="color:${popupColor}; font-size:10px; font-weight:bold; text-transform:uppercase;">${site.locationName}, ${site.state}</span>
-            <span style="background:${popupColor}; color:#000; font-size:9px; font-weight:900; padding:1px 4px; border-radius:2px;">${popupBadgeText}</span>
-          </div>
-          <div style="color:#ffffff; font-size:14px; font-weight:bold; margin:4px 0 6px 0;">${site.name}</div>
-          <div style="color:#a3e635; font-size:13px; font-weight:bold; margin-bottom:4px;">${popupPrice}</div>
-          <div style="color:#ccc7ab; font-size:10px; margin-top:4px; margin-bottom:8px;">${site.siteTypes.join(', ')}</div>
-          <a href="/listings/${site.id}" style="display:inline-block; width:100%; text-align:center; background:#050505; color:${popupColor}; border:1px solid ${popupColor}; font-family:monospace; font-size:11px; font-weight:bold; padding:7px 0; text-transform:uppercase; text-decoration:none; border-radius:4px;">VIEW DETAILS ↗</a>
+      const el = document.createElement('div');
+      el.className = 'group relative flex items-center justify-center cursor-pointer';
+      el.innerHTML = `
+        <div style="
+          position: absolute;
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background: ${pulseBg};
+          border: 1px dashed ${mainColor};
+          animation: ping 2.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+        "></div>
+        <div style="
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 24px;
+          height: 24px;
+          background: #050505;
+          border: 2px solid ${mainColor};
+          box-shadow: 0 0 10px ${mainColor};
+          border-radius: 50%;
+          color: ${mainColor};
+          transition: all 0.2s ease;
+        ">
+          <span class="material-symbols-outlined" style="font-size: 14px; font-weight: bold;">
+            ${badgeIcon}
+          </span>
+        </div>
+        <div style="
+          position: absolute;
+          bottom: 24px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: rgba(5, 5, 5, 0.95);
+          border: 1px solid ${mainColor};
+          color: ${mainColor};
+          font-family: monospace;
+          font-size: 10px;
+          font-weight: bold;
+          padding: 2px 6px;
+          border-radius: 2px;
+          white-space: nowrap;
+          pointer-events: none;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.8);
+          display: ${isSelected || isAiTarget ? 'block' : 'none'};
+        " class="group-hover:!block">
+          ${isAiTarget ? '🎯 ' : isHipcamp ? '⚡ ' : isCampspot ? '⬡ ' : '⛺ '}${site.name}
         </div>
       `;
 
-      marker.bindPopup(popupContent);
-
-      marker.on('click', (e) => {
-        L.DomEvent.stopPropagation(e);
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
         setSelectedCampsite(site);
         setActiveSite(site);
       });
 
-      markersGroupRef.current?.addLayer(marker);
+      const marker = new maplibregl.Marker({ element: el })
+        .setLngLat([site.lng, site.lat])
+        .addTo(map);
+
+      campsiteMarkersRef.current.push(marker);
     });
-  }, [visibleCampsites, activeSite]);
+  }, [visibleCampsites, activeSite, aiTargetIds]);
 
   const handleZoomIn = () => {
     if (mapInstanceRef.current) mapInstanceRef.current.zoomIn();
@@ -664,7 +598,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
 
   const handleCenterMap = () => {
     if (mapInstanceRef.current && activeSite) {
-      mapInstanceRef.current.setView([activeSite.lat, activeSite.lng], 12);
+      mapInstanceRef.current.flyTo({ center: [activeSite.lng, activeSite.lat], zoom: 12, speed: 1.2 });
     }
   };
 
@@ -672,7 +606,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
     setSelectedCampsite(site);
     setActiveSite(site);
     if (mapInstanceRef.current) {
-      mapInstanceRef.current.setView([site.lat, site.lng], 12, { animate: true });
+      mapInstanceRef.current.flyTo({ center: [site.lng, site.lat], zoom: 12, speed: 1.2 });
     }
   };
 
@@ -771,168 +705,164 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
             </button>
           </div>
 
-          {/* Search Input */}
           <div className="relative">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">search</span>
             <input
               type="text"
+              placeholder="Filter by name, park, or terrain..."
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
-              placeholder="Search viewport outposts, parks, cities..."
-              className="w-full bg-[#121212] border border-[#00f0ff]/40 focus:border-[#fcee0a] text-white pl-9 pr-8 py-2 font-mono text-xs outline-none transition-colors placeholder:text-gray-500"
+              className="w-full bg-[#121212] border border-[#00f0ff]/40 px-3 py-2 pl-9 text-xs font-mono text-white placeholder-gray-500 focus:outline-none focus:border-[#00f0ff] focus:ring-1 focus:ring-[#00f0ff] chamfered-card"
             />
+            <span className="material-symbols-outlined absolute left-2.5 top-2.5 text-sm text-gray-500">
+              search
+            </span>
             {searchFilter && (
               <button
                 onClick={() => setSearchFilter('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-xs font-mono"
+                className="absolute right-2.5 top-2.5 text-gray-500 hover:text-white"
               >
-                ✕
+                <span className="material-symbols-outlined text-xs">close</span>
               </button>
             )}
           </div>
 
-          {/* Quick Sort Options */}
-          <div className="flex items-center justify-between font-mono text-[10px] text-gray-400">
-            <span>SORT:</span>
-            <div className="flex gap-1">
-              <button
-                onClick={() => setSortBy('recommended')}
-                className={`px-2 py-0.5 border ${
-                  sortBy === 'recommended' ? 'border-[#00f0ff] text-[#00f0ff] bg-[#00f0ff]/10' : 'border-gray-800 text-gray-400 hover:text-white'
-                }`}
-              >
-                RECOMMENDED
-              </button>
-              <button
-                onClick={() => setSortBy('rating')}
-                className={`px-2 py-0.5 border ${
-                  sortBy === 'rating' ? 'border-[#fcee0a] text-[#fcee0a] bg-[#fcee0a]/10' : 'border-gray-800 text-gray-400 hover:text-white'
-                }`}
-              >
-                ★ RATING
-              </button>
-              <button
-                onClick={() => setSortBy('reviews')}
-                className={`px-2 py-0.5 border ${
-                  sortBy === 'reviews' ? 'border-[#a3e635] text-[#a3e635] bg-[#a3e635]/10' : 'border-gray-800 text-gray-400 hover:text-white'
-                }`}
-              >
-                REVIEWS
-              </button>
-            </div>
+          {/* Sort Controls */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setSortBy('recommended')}
+              className={`flex-1 py-1.5 font-mono text-[10px] font-bold uppercase transition-colors chamfered-btn ${
+                sortBy === 'recommended'
+                  ? 'bg-[#00f0ff] text-black font-black'
+                  : 'bg-[#121212] text-gray-400 border border-gray-800 hover:text-white'
+              }`}
+            >
+              Recommended
+            </button>
+            <button
+              onClick={() => setSortBy('rating')}
+              className={`flex-1 py-1.5 font-mono text-[10px] font-bold uppercase transition-colors chamfered-btn ${
+                sortBy === 'rating'
+                  ? 'bg-[#00f0ff] text-black font-black'
+                  : 'bg-[#121212] text-gray-400 border border-gray-800 hover:text-white'
+              }`}
+            >
+              Top Rated
+            </button>
+            <button
+              onClick={() => setSortBy('reviews')}
+              className={`flex-1 py-1.5 font-mono text-[10px] font-bold uppercase transition-colors chamfered-btn ${
+                sortBy === 'reviews'
+                  ? 'bg-[#00f0ff] text-black font-black'
+                  : 'bg-[#121212] text-gray-400 border border-gray-800 hover:text-white'
+              }`}
+            >
+              Reviews
+            </button>
           </div>
         </div>
 
-        {/* Scrollable Listings Stream */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
-          {isLoading && (
-            <div className="p-6 text-center font-mono text-xs text-[#00f0ff] space-y-2">
-              <div className="w-6 h-6 border-2 border-[#00f0ff] border-t-transparent rounded-full animate-spin mx-auto"></div>
-              <p>SCANNING SECTOR INTEL...</p>
+        {/* Campsite List */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
+          {isLoading && visibleCampsites.length === 0 ? (
+            <div className="text-center py-12 space-y-3 font-mono">
+              <div className="w-8 h-8 border-2 border-[#00f0ff] border-t-transparent rounded-full animate-spin mx-auto"></div>
+              <div className="text-xs text-[#00f0ff] tracking-widest uppercase">
+                Acquiring Sector Telemetry...
+              </div>
+              <p className="text-[10px] text-gray-400 max-w-xs mx-auto">
+                Querying verified USDA/NPS datasets, Hipcamp retreats & Campspot resorts
+              </p>
             </div>
-          )}
-
-          {visibleCampsites.length === 0 && !isLoading && (
-            <div className="p-8 text-center font-mono space-y-3">
-              <span className="material-symbols-outlined text-3xl text-gray-500">travel_explore</span>
-              <p className="text-xs text-gray-400">No outposts in current viewport.</p>
-              <p className="text-[10px] text-[#a3e635]">Pan or zoom the map to scout new sectors.</p>
+          ) : visibleCampsites.length === 0 ? (
+            <div className="text-center py-12 space-y-3 font-mono">
+              <span className="material-symbols-outlined text-4xl text-gray-600">
+                radar
+              </span>
+              <div className="text-xs text-gray-400 uppercase tracking-widest">
+                No Outposts in Active Viewport
+              </div>
+              <p className="text-[11px] text-gray-400 max-w-xs mx-auto">
+                Pan or zoom out across California sectors, national forests, and mountain passes to acquire campgrounds.
+              </p>
             </div>
-          )}
+          ) : (
+            visibleCampsites.map((site) => {
+              const isSelected = activeSite?.id === site.id;
+              const isAiTarget = aiTargetIds.includes(site.id);
+              const isHipcamp = site.source === 'hipcamp';
+              const isCampspot = site.source === 'campspot';
+              const sourceBadge = isHipcamp ? 'HIPCAMP' : isCampspot ? 'CAMPSPOT' : 'PUBLIC';
+              const badgeColor = isHipcamp ? 'bg-[#ff6b35]' : isCampspot ? 'bg-[#10b981]' : 'bg-[#00f0ff]';
+              const priceDisplay = site.priceDisplay || (site.pricePerNight ? `$${site.pricePerNight}/night` : 'See original list');
 
-          {visibleCampsites.map((site) => {
-            const isSelected = activeSite?.id === site.id;
-            const isHipcamp = site.source === 'hipcamp';
-            const isCampspot = site.source === 'campspot';
-
-            return (
-              <div
-                key={site.id}
-                onClick={() => handleSelectCampsiteFromList(site)}
-                className={`group border cursor-pointer transition-all duration-200 bg-[#0e1414] ${
-                  isSelected
-                    ? 'border-[#fcee0a] shadow-[0_0_15px_rgba(252,238,10,0.3)]'
-                    : isHipcamp
-                    ? 'border-[#ff6b35]/40 hover:border-[#ff6b35]'
-                    : isCampspot
-                    ? 'border-[#10b981]/40 hover:border-[#10b981]'
-                    : 'border-[#00f0ff]/30 hover:border-[#00f0ff]'
-                }`}
-              >
-                {/* Card Thumbnail */}
-                <div className="relative h-28 w-full overflow-hidden bg-gray-900">
-                  <img
-                    src={site.image}
-                    alt={site.name}
-                    className="w-full h-full object-cover grayscale opacity-85 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-300"
-                  />
-
-                  {/* Provider Source Tag */}
-                  <div className="absolute top-2 right-2 z-20">
-                    <span className={`font-mono text-[9px] font-black px-2 py-0.5 uppercase tracking-widest ${
-                      isHipcamp ? 'bg-[#ff6b35] text-black' : isCampspot ? 'bg-[#10b981] text-black' : 'bg-[#00f0ff] text-black'
-                    }`}>
-                      {isHipcamp ? 'HIPCAMP' : isCampspot ? 'CAMPSPOT' : 'PUBLIC'}
-                    </span>
-                  </div>
-
-                  {site.hasWeatherAlert && (
-                    <div className="absolute top-2 left-2 flex items-center gap-1.5 z-20">
-                      <span className="bg-[#fcee0a] text-black font-mono text-[9px] font-bold px-1.5 py-0.5 uppercase tracking-wider flex items-center gap-1 shadow-md">
-                        <span className="material-symbols-outlined text-[11px]">thunderstorm</span>
-                        NWS HAZARD
+              return (
+                <div
+                  key={site.id}
+                  onClick={() => handleSelectCampsiteFromList(site)}
+                  className={`p-3 bg-[#080c0c] border cursor-pointer transition-all chamfered-card ${
+                    isSelected
+                      ? 'border-[#fcee0a] bg-[#121a14] shadow-[0_0_15px_rgba(252,238,10,0.3)]'
+                      : isAiTarget
+                      ? 'border-[#a3e635] bg-[#0c1a10] shadow-[0_0_12px_rgba(163,230,53,0.3)]'
+                      : 'border-gray-800/80 hover:border-[#00f0ff]/60 hover:bg-[#0c1414]'
+                  }`}
+                >
+                  <div className="flex justify-between items-start mb-1.5">
+                    <div className="flex-1 pr-2">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className={`${badgeColor} text-black font-black text-[8px] px-1 py-0.2 rounded font-mono uppercase tracking-wider`}>
+                          {sourceBadge}
+                        </span>
+                        {isAiTarget && (
+                          <span className="bg-[#a3e635] text-black font-black text-[8px] px-1 py-0.2 rounded font-mono uppercase tracking-wider">
+                            TARGET
+                          </span>
+                        )}
+                        {site.hasWeatherAlert && (
+                          <span className="bg-red-500/20 text-red-400 border border-red-500/40 text-[8px] px-1 py-0.2 rounded font-mono flex items-center gap-0.5">
+                            <span className="material-symbols-outlined text-[10px]">warning</span>
+                            ALERT
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="font-['Space_Grotesk'] text-sm font-bold text-white leading-tight">
+                        {site.name}
+                      </h4>
+                      <p className="font-mono text-[10px] text-gray-400">
+                        {site.locationName}, {site.state} · {site.elevation}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-xs font-bold text-[#fcee0a] font-mono flex items-center justify-end gap-0.5">
+                        <span className="text-[10px]">★</span>
+                        <span>{site.rating.toFixed(1)}</span>
+                      </div>
+                      <span className="text-[9px] text-gray-400 font-mono block">
+                        {site.reviewCount} revs
                       </span>
                     </div>
-                  )}
+                  </div>
 
-                  <span className="absolute bottom-2 right-2 font-mono text-[10px] text-[#a3e635] font-bold bg-[#050505]/90 px-1.5 py-0.5 border border-[#a3e635]/40">
-                    {!site.priceDisplay || site.priceDisplay.includes('$0') || site.priceDisplay.toLowerCase().includes('free') || site.pricePerNight === 0
-                      ? 'See original list'
-                      : site.priceDisplay}
-                  </span>
-                </div>
-
-                {/* Card Body */}
-                <div className="p-3 space-y-2">
-                  <span className="font-mono text-[10px] text-gray-400 uppercase block">
-                    {site.locationName}, {site.state}
-                  </span>
-                  
-                  <h5 className="font-['Space_Grotesk'] text-sm font-bold text-white group-hover:text-[#fcee0a] transition-colors leading-tight">
-                    {site.name}
-                  </h5>
-
-                  {/* Card Actions */}
-                  <div className="pt-2 border-t border-gray-800/80 flex items-center gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedCampsite(site);
-                        navigate(`/listings/${site.id}`);
-                      }}
-                      className="flex-1 bg-[#050505] hover:bg-[#00f0ff]/10 border border-[#00f0ff]/60 text-[#00f0ff] hover:text-[#fcee0a] font-mono text-[10px] font-bold py-1.5 uppercase tracking-wider transition-colors text-center"
-                    >
-                      VIEW DETAILS
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSelectCampsiteFromList(site);
-                      }}
-                      className="px-2.5 py-1.5 bg-[#121212] hover:bg-[#267865] text-gray-300 hover:text-white font-mono text-xs border border-gray-700 transition-colors flex items-center justify-center"
-                      title="Focus on Map"
-                    >
-                      <span className="material-symbols-outlined text-xs">my_location</span>
-                    </button>
+                  <div className="flex items-center justify-between font-mono text-[10px] border-t border-gray-800/60 pt-2 mt-2">
+                    <span className="text-[#a3e635] font-bold">
+                      {priceDisplay}
+                    </span>
+                    <span className="text-[#00f0ff] flex items-center gap-1">
+                      <span>{site.terrain}</span>
+                      {site.weather && <span>· {site.weather.temp}°F</span>}
+                    </span>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </div>
 
-      {/* Map Control Bar (Top Right: Mason AI + Live Traffic + Live Weather Radar) */}
+      {/* Map Container */}
+      <div ref={mapContainerRef} className="w-full h-full" />
+
+      {/* Map Control Bar (Top Right: Mason AI + Live Traffic + Gas Stations + Weather Radar) */}
       <div className="absolute top-6 right-6 z-30 flex flex-col gap-2.5 items-end">
         {/* Mason AI Advisor Toggle Button */}
         <button
@@ -948,7 +878,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
           <span>MASON A.I. ADVISOR</span>
         </button>
 
-        {/* Live Real-Time Traffic & 50-State Transit Alerts Toggle Button (Option A & B Hybrid) */}
+        {/* Live Real-Time Traffic & 50-State Transit Alerts Toggle Button */}
         <button
           onClick={() => setShowTraffic(!showTraffic)}
           className={`flex items-center gap-2 px-4 py-2 font-mono text-xs font-bold uppercase tracking-wider chamfered-btn transition-all ${
@@ -1006,7 +936,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
         onSelectFuelStation={(st) => {
           setSelectedFuelStation(st);
           if (mapInstanceRef.current) {
-            mapInstanceRef.current.setView([st.lat, st.lng], 14, { animate: true });
+            mapInstanceRef.current.flyTo({ center: [st.lng, st.lat], zoom: 14, speed: 1.2 });
           }
         }}
         onApplyMapActions={handleApplyMapActions}
@@ -1033,214 +963,176 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
           className="w-10 h-10 bg-[#050505] hover:bg-[#a3e635]/20 text-[#a3e635] border border-[#a3e635]/50 flex items-center justify-center shadow-lg chamfered-btn"
           title="Center on Active Outpost"
         >
-          <span className="material-symbols-outlined">my_location</span>
+          <span className="material-symbols-outlined text-base">center_focus_strong</span>
         </button>
       </div>
 
-      {/* Campsite Details Overlay Card (Bottom Left - Disappears on Empty Map Click) */}
-      {activeSite && !isSidebarOpen && (
-        <div className={`absolute bottom-6 left-6 z-30 bg-[#0c1212]/95 border-2 ${
-          activeSite.source === 'campspot'
-            ? 'border-[#10b981] shadow-[0_0_20px_rgba(16,185,129,0.3)]'
-            : activeSite.source === 'hipcamp'
-            ? 'border-[#ff6b35] shadow-[0_0_20px_rgba(255,107,53,0.3)]'
-            : 'border-[#267865] shadow-[0_0_20px_rgba(38,120,101,0.3)]'
-        } p-5 max-w-md chamfered-card backdrop-blur-md font-sans text-xs space-y-3`}>
-          <div className="flex justify-between items-start border-b border-gray-800 pb-2">
+      {/* Active Selected Fuel Station Intelligence Modal */}
+      {selectedFuelStation && (
+        <div className="absolute top-20 right-6 z-35 w-80 sm:w-96 bg-[#050505]/95 border-2 border-[#f59e0b] shadow-[0_0_25px_rgba(245,158,11,0.35)] backdrop-blur-md p-4 chamfered-card animate-in fade-in duration-200">
+          <div className="flex justify-between items-start border-b border-gray-800 pb-2 mb-2.5">
             <div>
-              <div className="flex items-center gap-2">
-                <span className={`font-mono text-[10px] font-bold uppercase block ${
-                  activeSite.source === 'campspot'
-                    ? 'text-[#10b981]'
-                    : activeSite.source === 'hipcamp'
-                    ? 'text-[#ff6b35]'
-                    : 'text-[#00f0ff]'
-                }`}>
-                  {activeSite.locationName}, {activeSite.state}
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="bg-[#f59e0b] text-black font-black text-[9px] px-1.5 py-0.2 rounded font-mono uppercase tracking-wider">
+                  {selectedFuelStation.brand}
                 </span>
-                <span className={`font-mono text-[9px] font-black px-1.5 py-0.2 uppercase ${
-                  activeSite.source === 'campspot'
-                    ? 'bg-[#10b981] text-black'
-                    : activeSite.source === 'hipcamp'
-                    ? 'bg-[#ff6b35] text-black'
-                    : 'bg-[#00f0ff] text-black'
-                }`}>
-                  {activeSite.source === 'campspot' ? 'CAMPSPOT' : activeSite.source === 'hipcamp' ? 'HIPCAMP' : 'PUBLIC'}
+                <span className="text-[10px] text-gray-400 font-mono">
+                  {selectedFuelStation.highwayRef}
                 </span>
               </div>
-              <h3 className="font-['Space_Grotesk'] text-lg font-bold text-white leading-tight mt-0.5">{activeSite.name}</h3>
+              <h3 className="font-['Space_Grotesk'] text-base font-bold text-white leading-tight">
+                {selectedFuelStation.name}
+              </h3>
+              <p className="text-[11px] text-gray-400 font-sans mt-0.5">
+                {selectedFuelStation.address}
+              </p>
             </div>
-            <span className="font-mono text-sm font-bold text-[#a3e635] bg-[#050505] px-2.5 py-1 border border-[#a3e635]/40">
-              {!activeSite.priceDisplay || activeSite.priceDisplay.includes('$0') || activeSite.priceDisplay.toLowerCase().includes('free') || activeSite.pricePerNight === 0
-                ? 'See original list'
-                : activeSite.priceDisplay}
+            <button
+              onClick={() => setSelectedFuelStation(null)}
+              className="text-gray-400 hover:text-white p-1"
+            >
+              <span className="material-symbols-outlined text-sm">close</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 font-mono text-[11px] my-3">
+            <div className={`p-2 border rounded ${selectedFuelStation.hasDiesel ? 'border-emerald-500/50 bg-emerald-950/30 text-emerald-300' : 'border-gray-800 bg-[#121212] text-gray-500'}`}>
+              <div className="text-[9px] uppercase">Diesel Fuel</div>
+              <div className="font-bold">{selectedFuelStation.hasDiesel ? '✓ AVAILABLE' : '✕ NO DIESEL'}</div>
+            </div>
+            <div className={`p-2 border rounded ${selectedFuelStation.hasPropane ? 'border-amber-500/50 bg-amber-950/30 text-amber-300' : 'border-gray-800 bg-[#121212] text-gray-500'}`}>
+              <div className="text-[9px] uppercase">Propane Refill</div>
+              <div className="font-bold">{selectedFuelStation.hasPropane ? '✓ BULK REFILL' : '✕ NO PROPANE'}</div>
+            </div>
+            <div className={`p-2 border rounded ${selectedFuelStation.hasEVCharging ? 'border-cyan-500/50 bg-cyan-950/30 text-cyan-300' : 'border-gray-800 bg-[#121212] text-gray-500'}`}>
+              <div className="text-[9px] uppercase">EV Charging</div>
+              <div className="font-bold">{selectedFuelStation.hasEVCharging ? '✓ FAST CHARGERS' : '✕ NO EV'}</div>
+            </div>
+            <div className={`p-2 border rounded ${selectedFuelStation.isOpen24Hours ? 'border-blue-500/50 bg-blue-950/30 text-blue-300' : 'border-gray-800 bg-[#121212] text-gray-500'}`}>
+              <div className="text-[9px] uppercase">Operating Hours</div>
+              <div className="font-bold">{selectedFuelStation.isOpen24Hours ? '✓ 24/7 OPEN' : 'HOURS VARY'}</div>
+            </div>
+          </div>
+
+          <div className="space-y-1.5 pt-1">
+            <a
+              href={`https://www.google.com/maps/dir/?api=1&destination=${selectedFuelStation.lat},${selectedFuelStation.lng}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full bg-[#f59e0b] hover:bg-[#d97706] text-black font-mono text-xs font-bold py-2 px-3 chamfered-btn uppercase flex items-center justify-center gap-1.5 transition-colors text-center"
+            >
+              <span>NAVIGATE IN GOOGLE MAPS</span>
+              <span className="material-symbols-outlined text-sm">directions_car</span>
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* Active Selected Transit Alert Modal */}
+      {selectedTransitAlert && (
+        <div className="absolute top-20 right-6 z-35 w-80 sm:w-96 bg-[#050505]/95 border-2 border-[#ef4444] shadow-[0_0_25px_rgba(239,68,68,0.35)] backdrop-blur-md p-4 chamfered-card animate-in fade-in duration-200">
+          <div className="flex justify-between items-start border-b border-gray-800 pb-2 mb-2">
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="bg-[#ef4444] text-black font-black text-[9px] px-1.5 py-0.2 rounded font-mono uppercase">
+                  {selectedTransitAlert.agency}
+                </span>
+                <span className="text-[10px] text-[#fcee0a] font-mono font-bold">
+                  {selectedTransitAlert.alertType.replace('_', ' ')}
+                </span>
+              </div>
+              <h3 className="font-['Space_Grotesk'] text-base font-bold text-white leading-tight">
+                {selectedTransitAlert.highway}
+              </h3>
+            </div>
+            <button
+              onClick={() => setSelectedTransitAlert(null)}
+              className="text-gray-400 hover:text-white p-1"
+            >
+              <span className="material-symbols-outlined text-sm">close</span>
+            </button>
+          </div>
+
+          <div className="bg-[#141d1d] border-l-2 border-[#ef4444] p-2 text-xs font-mono text-[#fcee0a] font-bold mb-2">
+            ⏱️ {selectedTransitAlert.delayText}
+          </div>
+
+          <p className="text-xs text-gray-300 font-sans leading-relaxed mb-3">
+            {selectedTransitAlert.description}
+          </p>
+
+          {selectedTransitAlert.recommendedDetour && (
+            <div className="bg-[#101414] border border-[#a3e635]/40 p-2.5 text-xs font-mono text-[#a3e635] mb-2 rounded">
+              <span className="font-bold text-white">RECOMMENDED DETOUR:</span> {selectedTransitAlert.recommendedDetour}
+            </div>
+          )}
+
+          <div className="text-[10px] font-mono text-gray-500 text-right">
+            Source: {selectedTransitAlert.lastUpdated}
+          </div>
+        </div>
+      )}
+
+      {/* Selected Outpost Bottom Detail Card on Map */}
+      {activeSite && (
+        <div className="absolute bottom-6 left-6 z-30 max-w-sm sm:max-w-md w-full bg-[#050505]/95 border-2 border-[#fcee0a] p-4 chamfered-card shadow-[0_0_25px_rgba(252,238,10,0.25)] backdrop-blur-md animate-in slide-in-from-bottom duration-200">
+          <div className="flex justify-between items-start">
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className={`text-[9px] font-black px-1.5 py-0.2 uppercase font-mono ${
+                  activeSite.source === 'hipcamp' ? 'bg-[#ff6b35] text-black' : activeSite.source === 'campspot' ? 'bg-[#10b981] text-black' : 'bg-[#00f0ff] text-black'
+                }`}>
+                  {activeSite.source === 'hipcamp' ? 'HIPCAMP RETREAT' : activeSite.source === 'campspot' ? 'CAMPSPOT RESORT' : 'PUBLIC LANDS'}
+                </span>
+                <span className="font-mono text-[10px] text-gray-400">
+                  {activeSite.locationName}, {activeSite.state} · {activeSite.elevation}
+                </span>
+              </div>
+              <h3 className="font-['Space_Grotesk'] text-lg font-bold text-white leading-tight">
+                {activeSite.name}
+              </h3>
+            </div>
+            <button
+              onClick={() => setActiveSite(null)}
+              className="text-gray-400 hover:text-white p-1"
+            >
+              <span className="material-symbols-outlined text-sm">close</span>
+            </button>
+          </div>
+
+          <p className="text-xs text-gray-300 font-sans line-clamp-2 mt-2">
+            {activeSite.summary || 'Verified wilderness outpost with GPS weather telemetry.'}
+          </p>
+
+          <div className="flex items-center justify-between font-mono text-xs border-t border-gray-800 pt-2.5 mt-3">
+            <span className="text-[#fcee0a] font-bold">
+              {activeSite.weather ? `🌡️ ${activeSite.weather.temp}°F · ${activeSite.weather.windSpeed} mph wind` : '⚡ Live Telemetry'}
+            </span>
+            <span className="text-[#a3e635] font-bold">
+              {activeSite.priceDisplay || (activeSite.pricePerNight ? `$${activeSite.pricePerNight}/night` : 'See original list')}
             </span>
           </div>
 
-          <p className="font-mono text-xs text-[#ccc7ab] line-clamp-2 leading-relaxed">
-            {activeSite.summary}
-          </p>
-
-          {/* Approach Highway & Transit Corridor Telemetry */}
-          {(() => {
-            const transit = calculateCampgroundTransitTelemetry(activeSite.lat, activeSite.lng, activeSite.state);
-            const isAlert = transit.status !== 'CLEAR';
-            return (
-              <div className={`p-2 font-mono text-[10px] border flex items-center justify-between gap-2 ${
-                isAlert
-                  ? 'bg-amber-950/40 border-amber-500/60 text-amber-300'
-                  : 'bg-[#050505] border-emerald-900/60 text-emerald-400'
-              }`}>
-                <div className="flex items-center gap-1.5 truncate">
-                  <span className="material-symbols-outlined text-xs">
-                    {isAlert ? 'warning' : 'check_circle'}
-                  </span>
-                  <span className="truncate">{transit.corridorNote}</span>
-                </div>
-                <span className="font-bold whitespace-nowrap bg-black/60 px-1.5 py-0.5 border border-current/30">
-                  {transit.estDriveTime}
-                </span>
-              </div>
-            );
-          })()}
-
-          <div className="flex items-center gap-1.5 flex-wrap font-mono text-[10px] text-[#00f0ff]">
-            <span className="font-bold">SITE TYPES:</span>
-            {activeSite.siteTypes.map((st) => (
-              <span key={st} className="bg-[#121212] border border-gray-700 text-[#e5e2e1] px-2 py-0.5 rounded-none">{st}</span>
-            ))}
-          </div>
-
-          <div className="pt-2">
+          <div className="grid grid-cols-2 gap-2 mt-3 font-mono text-xs">
             <button
-              onClick={() => {
-                setSelectedCampsite(activeSite);
-                navigate(`/listings/${activeSite.id}`);
-              }}
-              className="w-full bg-[#050505] hover:bg-[#00f0ff]/10 border-2 border-[#00f0ff] text-[#00f0ff] hover:text-[#fcee0a] font-mono text-xs font-bold py-3 uppercase tracking-wider chamfered-btn transition-all text-center shadow-[0_0_12px_rgba(0,240,255,0.2)] flex items-center justify-center gap-2"
+              onClick={() => navigate(`/listings/${activeSite.id}`)}
+              className="bg-[#267865] hover:bg-[#349882] text-white font-bold py-2 chamfered-btn uppercase flex items-center justify-center gap-1 transition-colors text-center"
             >
-              <span>VIEW DETAILS</span>
+              <span>FULL BRIEFING</span>
               <span className="material-symbols-outlined text-xs">arrow_forward</span>
             </button>
+            <a
+              href={`https://www.google.com/maps/dir/?api=1&destination=${activeSite.lat},${activeSite.lng}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-[#121212] border border-[#00f0ff]/50 hover:border-[#fcee0a] text-[#00f0ff] hover:text-[#fcee0a] font-bold py-2 chamfered-btn uppercase flex items-center justify-center gap-1 transition-colors text-center"
+            >
+              <span>NAVIGATE</span>
+              <span className="material-symbols-outlined text-xs">directions_car</span>
+            </a>
           </div>
         </div>
       )}
-
-      {/* Interactive Fuel Station & Travel Plaza Intelligence Modal */}
-      {selectedFuelStation && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
-          onClick={() => setSelectedFuelStation(null)}
-        >
-          <div 
-            className="bg-[#0c1212] border-2 border-[#f59e0b] p-6 md:p-8 max-w-lg w-full chamfered-card shadow-[0_0_35px_rgba(245,158,11,0.35)] relative space-y-5 font-mono text-xs"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex justify-between items-start border-b border-gray-800 pb-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-[#f59e0b] uppercase tracking-wider flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">local_gas_station</span>
-                    HIGHWAY FUEL & REFUELING OUTPOST
-                  </span>
-                  <span className="bg-[#f59e0b] text-black text-[9px] font-black px-1.5 py-0.2 uppercase">
-                    {selectedFuelStation.brand}
-                  </span>
-                </div>
-                <h3 className="font-['Space_Grotesk'] text-lg font-bold text-white mt-1 leading-tight">
-                  {selectedFuelStation.name}
-                </h3>
-                <div className="text-[11px] text-gray-400 mt-0.5">
-                  📍 {selectedFuelStation.highwayRef}
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedFuelStation(null)}
-                className="text-gray-400 hover:text-white text-base font-bold bg-[#050505] w-7 h-7 border border-gray-700 flex items-center justify-center"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Fuel Capabilities & Pricing Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-              <div className={`p-2.5 border ${selectedFuelStation.hasDiesel ? 'bg-emerald-950/30 border-emerald-500/60 text-emerald-400' : 'bg-gray-900/40 border-gray-800 text-gray-600'}`}>
-                <span className="text-[10px] block font-bold">🚛 DIESEL</span>
-                <span className="text-xs font-black">{selectedFuelStation.hasDiesel ? 'AVAILABLE' : 'NO'}</span>
-              </div>
-              <div className={`p-2.5 border ${selectedFuelStation.hasPropane ? 'bg-amber-950/30 border-amber-500/60 text-amber-400' : 'bg-gray-900/40 border-gray-800 text-gray-600'}`}>
-                <span className="text-[10px] block font-bold">🛢️ PROPANE</span>
-                <span className="text-xs font-black">{selectedFuelStation.hasPropane ? 'REFILL' : 'NO'}</span>
-              </div>
-              <div className={`p-2.5 border ${selectedFuelStation.hasEVCharging ? 'bg-cyan-950/30 border-cyan-500/60 text-cyan-400' : 'bg-gray-900/40 border-gray-800 text-gray-600'}`}>
-                <span className="text-[10px] block font-bold">⚡ EV CHARGE</span>
-                <span className="text-xs font-black">{selectedFuelStation.hasEVCharging ? 'FAST DC' : 'NO'}</span>
-              </div>
-              <div className={`p-2.5 border ${selectedFuelStation.hasRVDump ? 'bg-blue-950/30 border-blue-500/60 text-blue-400' : 'bg-gray-900/40 border-gray-800 text-gray-600'}`}>
-                <span className="text-[10px] block font-bold">💧 RV DUMP</span>
-                <span className="text-xs font-black">{selectedFuelStation.hasRVDump ? 'ON-SITE' : 'NO'}</span>
-              </div>
-            </div>
-
-            {/* Address & Estimated Rate */}
-            <div className="bg-[#050505] p-3.5 border border-gray-800 space-y-1.5">
-              <div className="flex justify-between items-center text-[11px]">
-                <span className="text-gray-400">PHYSICAL ADDRESS:</span>
-                <span className="text-gray-200 font-sans">{selectedFuelStation.address}</span>
-              </div>
-              <div className="flex justify-between items-center text-[11px]">
-                <span className="text-gray-400">HOURS OF OPERATION:</span>
-                <span className="text-[#a3e635] font-bold">{selectedFuelStation.isOpen24Hours ? '🟢 OPEN 24/7' : 'Standard Highway Hours'}</span>
-              </div>
-              {selectedFuelStation.priceEstimate && (
-                <div className="flex justify-between items-center text-[11px]">
-                  <span className="text-gray-400">EST. REGULAR RATE:</span>
-                  <span className="text-[#fcee0a] font-bold">{selectedFuelStation.priceEstimate}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Verified Amenities */}
-            <div className="space-y-1.5">
-              <span className="text-[10px] text-gray-400 uppercase font-bold block">SERVICES & AMENITIES:</span>
-              <div className="flex flex-wrap gap-1.5">
-                {selectedFuelStation.amenities.map((am, i) => (
-                  <span key={i} className="bg-[#141d1d] border border-[#f59e0b]/40 text-[#f59e0b] px-2 py-0.5 text-[10px]">
-                    ✓ {am}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="pt-2 flex flex-col sm:flex-row gap-3">
-              <a
-                href={`https://www.google.com/maps/dir/?api=1&destination=${selectedFuelStation.lat},${selectedFuelStation.lng}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 bg-[#f59e0b] hover:bg-[#d97706] text-black font-['Orbitron'] font-bold py-3.5 px-4 uppercase tracking-wider text-center flex items-center justify-center gap-2 chamfered-btn transition-colors"
-              >
-                <span>NAVIGATE IN GOOGLE MAPS</span>
-                <span className="material-symbols-outlined text-sm">directions_car</span>
-              </a>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(`${selectedFuelStation.lat.toFixed(5)}, ${selectedFuelStation.lng.toFixed(5)}`);
-                  alert(`Copied GPS Coordinates: ${selectedFuelStation.lat.toFixed(5)}, ${selectedFuelStation.lng.toFixed(5)}`);
-                }}
-                className="bg-[#050505] hover:bg-gray-900 border border-gray-700 text-gray-300 px-4 py-3.5 font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 chamfered-btn transition-colors"
-              >
-                <span>COPY GPS</span>
-                <span className="material-symbols-outlined text-sm">content_copy</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Main Map DOM Element */}
-      <div ref={mapContainerRef} className="w-full h-full z-10" />
     </div>
   );
 };
