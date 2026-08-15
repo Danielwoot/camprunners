@@ -180,19 +180,6 @@ export const MasonAIAdvisorDrawer: React.FC<MasonAIAdvisorDrawerProps> = ({
         {/* Mason's Analysis Results */}
         {!isAnalyzing && analysisResult && (
           <div className="space-y-4 animate-in fade-in duration-300">
-            {/* AI Engine Status Badge */}
-            <div className="flex justify-between items-center px-1 font-mono text-[10px] text-gray-400">
-              <span className="flex items-center gap-1.5 text-[#a3e635] font-bold">
-                <span className="w-2 h-2 rounded-full bg-[#a3e635] animate-pulse"></span>
-                {analysisResult.engineUsed === 'groq-llama-70b'
-                  ? 'GROQ CLOUD LLAMA 3.3 70B // REAL-TIME INTEL'
-                  : 'TACTICAL EXPEDITION TELEMETRY // ACTIVE'}
-              </span>
-              <span className="text-gray-500">
-                {analysisResult.analyzedCount || visibleCampsites.length} OUTPOSTS ANALYZED
-              </span>
-            </div>
-
             {/* Top Recommended Outpost Cards */}
             <div className="space-y-3">
               <span className="font-mono text-[10px] text-gray-400 font-bold uppercase tracking-widest block">

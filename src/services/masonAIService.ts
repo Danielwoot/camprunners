@@ -442,6 +442,8 @@ export async function queryMasonAdvisor(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 7500);
 
+    console.log('[Mason AI] Sending request to /api/ai/mason-advisor with', subset.length, 'campsites,', fuelSubset.length, 'fuel stations,', transitSubset.length, 'transit alerts');
+
     const response = await fetch('/api/ai/mason-advisor', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -456,8 +458,12 @@ export async function queryMasonAdvisor(
 
     clearTimeout(timeoutId);
 
+    console.log('[Mason AI] Response status:', response.status, response.ok ? 'OK' : 'FAILED');
+
     if (response.ok) {
       const data = await response.json();
+      console.log('[Mason AI] Groq response data:', data?.error ? `ERROR: ${data.error}` : 'Valid response received', data?.recommendations?.length || 0, 'recommendations');
+
       if (data && !data.error) {
         const hydratedRecs: MasonRecommendation[] = (Array.isArray(data.recommendations) ? data.recommendations : [])
           .map((rec: any) => {
@@ -550,6 +556,8 @@ export async function queryMasonAdvisor(
           })
           .filter((f): f is MasonFuelRecommendation => f !== null);
 
+        console.log('[Mason AI] Hydrated:', hydratedRecs.length, 'campsite recs,', hydratedFuel.length, 'fuel recs. Engine: groq-llama-70b');
+
         if (hydratedRecs.length > 0 || hydratedFuel.length > 0) {
           return {
             greeting: data.greeting || `Mason here! I've analyzed your sector with Groq Llama 3.3.`,
@@ -561,12 +569,18 @@ export async function queryMasonAdvisor(
             mapActions: data.mapActions
           };
         }
+        console.log('[Mason AI] Groq returned valid response but 0 hydrated recs - falling back to heuristic');
+      } else {
+        console.log('[Mason AI] Groq returned error or empty:', data?.error);
       }
+    } else {
+      console.log('[Mason AI] API endpoint returned non-OK status:', response.status, '- are you running npm run dev?');
     }
   } catch (err) {
     console.log('[Mason AI] Groq fallback to local heuristic engine:', err);
   }
 
+  console.log('[Mason AI] Using local tactical-heuristic engine (Groq not reached)');
   // Instant fallback to client heuristic reasoning engine
   return generateMasonRecommendations(campsites, userGoal, context);
 }

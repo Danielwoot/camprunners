@@ -13066,12 +13066,14 @@ export default function dyrtScraperPlugin(): Plugin {
     configureServer(server) {
       // Mason AI Advisor Endpoint (Powered by Groq Cloud Llama-3.3-70B)
       server.middlewares.use('/api/ai/mason-advisor', async (req, res) => {
+        console.log('[Mason API] Received', req.method, 'request to /api/ai/mason-advisor');
         if (req.method === 'POST') {
           let body = '';
           req.on('data', chunk => body += chunk);
           req.on('end', async () => {
             try {
               const data = JSON.parse(body);
+              console.log('[Mason API] Parsed payload:', data.visibleSites?.length || 0, 'sites,', data.visibleFuel?.length || 0, 'fuel,', data.transitAlerts?.length || 0, 'alerts. Goal:', data.userGoal?.slice(0, 60));
               const result = await queryGroqAdvisor(
                 data.visibleSites || [],
                 data.userGoal || '',
@@ -13079,9 +13081,11 @@ export default function dyrtScraperPlugin(): Plugin {
                 data.transitAlerts || [],
                 data.apiKey
               );
+              console.log('[Mason API] Groq result:', result?.error ? `ERROR: ${result.error}` : 'SUCCESS', result?.recommendations?.length || 0, 'recs');
               res.setHeader('Content-Type', 'application/json');
               res.end(JSON.stringify(result || { error: 'fallback' }));
-            } catch {
+            } catch (e: any) {
+              console.error('[Mason API] Parse/execution error:', e?.message || e);
               res.setHeader('Content-Type', 'application/json');
               res.end(JSON.stringify({ error: 'fallback' }));
             }

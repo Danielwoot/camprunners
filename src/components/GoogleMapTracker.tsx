@@ -35,10 +35,10 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
 
   const [activeSite, setActiveSite] = useState<DyrtCampsite | null>(null);
   const [allVisibleSites, setAllVisibleSites] = useState<DyrtCampsite[]>([]);
-  const [showRadar, setShowRadar] = useState<boolean>(true);
+  const [showRadar, setShowRadar] = useState<boolean>(false);
   const [radarTimeLabel, setRadarTimeLabel] = useState<string>('LIVE RADAR');
-  const [showTraffic, setShowTraffic] = useState<boolean>(true);
-  const [showFuelStations, setShowFuelStations] = useState<boolean>(true);
+  const [showTraffic, setShowTraffic] = useState<boolean>(false);
+  const [showFuelStations, setShowFuelStations] = useState<boolean>(false);
   const [visibleFuelStations, setVisibleFuelStations] = useState<FuelStation[]>([]);
   const [selectedFuelStation, setSelectedFuelStation] = useState<FuelStation | null>(null);
   const [activeTransitAlerts, setActiveTransitAlerts] = useState<StateTransitAlert[]>([]);
