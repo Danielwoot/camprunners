@@ -14,7 +14,6 @@ import {
   StateTransitAlert
 } from '../services/trafficService';
 import { fetchFuelStationsInBounds, FuelStation } from '../services/fuelService';
-import { getTacticalLabelsInBounds } from '../services/mapLabelsService';
 import { MasonAIAdvisorDrawer } from './MasonAIAdvisorDrawer';
 
 interface GoogleMapTrackerProps {
@@ -30,7 +29,6 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
   const trafficLayerRef = useRef<L.TileLayer | null>(null);
   const transitMarkersGroupRef = useRef<L.LayerGroup | null>(null);
   const fuelMarkersGroupRef = useRef<L.LayerGroup | null>(null);
-  const labelsMarkersGroupRef = useRef<L.LayerGroup | null>(null);
   const sidebarContainerRef = useRef<HTMLDivElement>(null);
 
   const { registerCampsites, setSelectedCampsite } = useCamprunner();
@@ -41,7 +39,6 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
   const [radarTimeLabel, setRadarTimeLabel] = useState<string>('LIVE RADAR');
   const [showTraffic, setShowTraffic] = useState<boolean>(false);
   const [showFuelStations, setShowFuelStations] = useState<boolean>(false);
-  const [showTacticalLabels, setShowTacticalLabels] = useState<boolean>(true);
   const [visibleFuelStations, setVisibleFuelStations] = useState<FuelStation[]>([]);
   const [selectedFuelStation, setSelectedFuelStation] = useState<FuelStation | null>(null);
   const [activeTransitAlerts, setActiveTransitAlerts] = useState<StateTransitAlert[]>([]);
@@ -107,9 +104,9 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
 
-    // Dark HUD Basemap layer (No Labels - enables Camprunners Custom Typography)
+    // Dark HUD Basemap layer
     const darkTileLayer = L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',
+      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
       {
         attribution: '&copy; <a href="https://carto.com/">CARTO</a>, &copy; OpenStreetMap',
         subdomains: 'abcd',
@@ -140,7 +137,6 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
     });
 
     mapInstanceRef.current = map;
-    labelsMarkersGroupRef.current = L.layerGroup().addTo(map);
     markersGroupRef.current = L.layerGroup().addTo(map);
     transitMarkersGroupRef.current = L.layerGroup().addTo(map);
     fuelMarkersGroupRef.current = L.layerGroup().addTo(map);
@@ -524,128 +520,6 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
       fuelMarkersGroupRef.current?.addLayer(fuelMarker);
     });
   }, [showFuelStations, visibleFuelStations]);
-
-  // Render Tactical Geographic & Landmark Sector Labels with Camprunners Typography (Orbitron / Rajdhani / JetBrains Mono)
-  useEffect(() => {
-    if (!mapInstanceRef.current || !labelsMarkersGroupRef.current) return;
-
-    labelsMarkersGroupRef.current.clearLayers();
-
-    if (!showTacticalLabels) return;
-
-    const map = mapInstanceRef.current;
-    const bounds = map.getBounds();
-    const zoom = map.getZoom();
-
-    const mapBounds = {
-      minLat: bounds.getSouth(),
-      maxLat: bounds.getNorth(),
-      minLng: bounds.getWest(),
-      maxLng: bounds.getEast()
-    };
-
-    const inViewLabels = getTacticalLabelsInBounds(mapBounds, zoom);
-
-    inViewLabels.forEach((label) => {
-      let badgeColor = '#00f0ff';
-      let badgeBg = 'rgba(0, 240, 255, 0.15)';
-      let borderGlow = 'rgba(0, 240, 255, 0.4)';
-      let titleFont = "font-family: 'Orbitron', monospace;";
-
-      if (label.type === 'PARK') {
-        badgeColor = '#a3e635'; // Lime for National Parks
-        badgeBg = 'rgba(163, 230, 53, 0.15)';
-        borderGlow = 'rgba(163, 230, 53, 0.5)';
-      } else if (label.type === 'PEAK') {
-        badgeColor = '#00f0ff'; // Cyan for Peaks
-        badgeBg = 'rgba(0, 240, 255, 0.18)';
-        borderGlow = 'rgba(0, 240, 255, 0.5)';
-      } else if (label.type === 'PASS') {
-        badgeColor = '#f59e0b'; // Amber for Highway Passes
-        badgeBg = 'rgba(245, 158, 11, 0.18)';
-        borderGlow = 'rgba(245, 158, 11, 0.5)';
-      } else if (label.type === 'COAST') {
-        badgeColor = '#38bdf8'; // Sky blue for Coastline
-        badgeBg = 'rgba(56, 189, 248, 0.18)';
-        borderGlow = 'rgba(56, 189, 248, 0.5)';
-      } else {
-        badgeColor = '#94a3b8'; // Slate for Metro Sectors
-        badgeBg = 'rgba(148, 163, 184, 0.12)';
-        borderGlow = 'rgba(148, 163, 184, 0.3)';
-        titleFont = "font-family: 'Rajdhani', sans-serif;";
-      }
-
-      const labelHtml = `
-        <div class="pointer-events-none select-none flex flex-col items-center justify-center" style="transform: translate(-50%, -50%);">
-          <div style="
-            background: rgba(5, 7, 10, 0.88);
-            backdrop-filter: blur(4px);
-            border: 1px solid ${borderGlow};
-            border-radius: 4px;
-            padding: 3px 8px;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.9), 0 0 10px ${badgeBg};
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            white-space: nowrap;
-            letter-spacing: 0.08em;
-          ">
-            <div style="display: flex; align-items: center; gap: 5px;">
-              ${label.badge ? `
-                <span style="
-                  background: ${badgeBg};
-                  border: 1px solid ${badgeColor};
-                  color: ${badgeColor};
-                  font-family: 'Orbitron', monospace;
-                  font-size: 7.5px;
-                  font-weight: 900;
-                  padding: 1px 4px;
-                  border-radius: 2px;
-                  text-transform: uppercase;
-                  letter-spacing: 0.1em;
-                ">${label.badge}</span>
-              ` : ''}
-              <span style="
-                ${titleFont}
-                color: #ffffff;
-                font-size: ${label.type === 'PARK' ? '11px' : label.type === 'PEAK' ? '10px' : '9.5px'};
-                font-weight: 800;
-                text-transform: uppercase;
-                text-shadow: 0 0 6px rgba(0,0,0,0.9), 0 0 10px ${borderGlow};
-              ">${label.name}</span>
-            </div>
-            ${label.elevation || label.subtext ? `
-              <div style="
-                font-family: 'JetBrains Mono', 'Rajdhani', monospace;
-                font-size: 8px;
-                color: ${badgeColor};
-                font-weight: 700;
-                margin-top: 1px;
-                text-transform: uppercase;
-                letter-spacing: 0.06em;
-              ">
-                ${label.elevation ? `ELEV: ${label.elevation}` : ''} ${label.elevation && label.subtext ? '·' : ''} ${label.subtext || ''}
-              </div>
-            ` : ''}
-          </div>
-        </div>
-      `;
-
-      const customLabelIcon = L.divIcon({
-        className: 'tactical-sector-label',
-        html: labelHtml,
-        iconSize: [180, 30],
-        iconAnchor: [90, 15]
-      });
-
-      const labelMarker = L.marker([label.lat, label.lng], {
-        icon: customLabelIcon,
-        zIndexOffset: 100 // Subtle under interactive pins
-      });
-
-      labelsMarkersGroupRef.current?.addLayer(labelMarker);
-    });
-  }, [showTacticalLabels, allVisibleSites]);
 
   // Render markers at exact real-world GPS coordinates with tactical radar pulse pins
   useEffect(() => {
@@ -1118,22 +992,6 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
             {showRadar ? 'radar' : 'grain'}
           </span>
           <span>{showRadar ? radarTimeLabel : 'ENABLE RADAR'}</span>
-        </button>
-
-        {/* Camprunners Tactical Typography Sector Labels Toggle Button */}
-        <button
-          onClick={() => setShowTacticalLabels(!showTacticalLabels)}
-          className={`flex items-center gap-2 px-4 py-2 font-mono text-xs font-bold uppercase tracking-wider chamfered-btn transition-all ${
-            showTacticalLabels
-              ? 'bg-[#00f0ff] text-black shadow-[0_0_15px_#00f0ff]'
-              : 'bg-[#121212] text-gray-400 border border-gray-700 hover:text-white'
-          }`}
-          title="Toggle Camprunners tactical font landmark and sector labels"
-        >
-          <span className="material-symbols-outlined text-sm">
-            {showTacticalLabels ? 'label' : 'label_off'}
-          </span>
-          <span>{showTacticalLabels ? 'LABELS: ACTIVE' : 'SECTOR LABELS'}</span>
         </button>
       </div>
 
