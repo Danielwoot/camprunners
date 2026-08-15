@@ -6,6 +6,12 @@ import { useCamprunner } from '../context/CamprunnerContext';
 import { DyrtCampsite } from '../data/dyrtCampsites';
 import { fetchUnifiedCampsitesInBounds } from '../services/dyrtService';
 import { getNOAANexradRadarTileUrl } from '../services/weatherRadarService';
+import {
+  getRealTimeTrafficTileUrl,
+  fetchTransitAlertsInBounds,
+  calculateCampgroundTransitTelemetry,
+  StateTransitAlert
+} from '../services/trafficService';
 import { MasonAIAdvisorDrawer } from './MasonAIAdvisorDrawer';
 
 interface GoogleMapTrackerProps {
@@ -18,6 +24,8 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersGroupRef = useRef<L.LayerGroup | null>(null);
   const radarLayerRef = useRef<L.TileLayer | null>(null);
+  const trafficLayerRef = useRef<L.TileLayer | null>(null);
+  const transitMarkersGroupRef = useRef<L.LayerGroup | null>(null);
   const sidebarContainerRef = useRef<HTMLDivElement>(null);
 
   const { registerCampsites, setSelectedCampsite } = useCamprunner();
@@ -26,6 +34,9 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
   const [allVisibleSites, setAllVisibleSites] = useState<DyrtCampsite[]>([]);
   const [showRadar, setShowRadar] = useState<boolean>(true);
   const [radarTimeLabel, setRadarTimeLabel] = useState<string>('LIVE RADAR');
+  const [showTraffic, setShowTraffic] = useState<boolean>(true);
+  const [activeTransitAlerts, setActiveTransitAlerts] = useState<StateTransitAlert[]>([]);
+  const [selectedTransitAlert, setSelectedTransitAlert] = useState<StateTransitAlert | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   const [isMasonDrawerOpen, setIsMasonDrawerOpen] = useState<boolean>(false);
@@ -105,6 +116,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
 
     mapInstanceRef.current = map;
     markersGroupRef.current = L.layerGroup().addTo(map);
+    transitMarkersGroupRef.current = L.layerGroup().addTo(map);
 
     // Initial fetch when map loads
     fetchCampsitesForCurrentBounds(map);
@@ -138,7 +150,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
     };
   }, []);
 
-  // Fetch unified campgrounds, Hipcamp retreats, and Campspot resorts in bounds
+  // Fetch unified campgrounds, Hipcamp retreats, Campspot resorts, and 50-State transit authority alerts in bounds
   const fetchCampsitesForCurrentBounds = async (map: L.Map) => {
     try {
       setIsLoading(true);
@@ -150,13 +162,18 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
         maxLng: bounds.getEast()
       };
 
-      const sites = await fetchUnifiedCampsitesInBounds(mapBounds);
+      const [sites, transitAlerts] = await Promise.all([
+        fetchUnifiedCampsitesInBounds(mapBounds),
+        Promise.resolve(fetchTransitAlertsInBounds(mapBounds))
+      ]);
+
       // Strictly keep only sites whose lat/lng is actually inside the active map bounds
       const inViewSites = sites.filter((s) => bounds.contains([s.lat, s.lng]));
       setAllVisibleSites(inViewSites);
+      setActiveTransitAlerts(transitAlerts);
       registerCampsites(inViewSites); // Dynamically accumulates discovered sites into global directory!
     } catch (err) {
-      console.error('[Map Tracker] Failed to fetch campsites:', err);
+      console.error('[Map Tracker] Failed to fetch campsites & transit alerts:', err);
     } finally {
       setIsLoading(false);
     }
@@ -226,6 +243,169 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
       }
     }
   }, [showRadar]);
+
+  // Handle Real-Time Traffic Flow Raster Tile Layer (Option A Primary)
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+
+    if (showTraffic) {
+      if (!trafficLayerRef.current) {
+        const trafficTileUrl = getRealTimeTrafficTileUrl();
+        const trafficLayer = L.tileLayer(trafficTileUrl, {
+          opacity: 0.65,
+          zIndex: 8,
+          maxZoom: 19,
+          attribution: 'CARTO / OpenStreetMap / 511 Transit Telemetry'
+        });
+
+        trafficLayer.addTo(mapInstanceRef.current);
+        trafficLayerRef.current = trafficLayer;
+      }
+    } else {
+      if (trafficLayerRef.current) {
+        mapInstanceRef.current.removeLayer(trafficLayerRef.current);
+        trafficLayerRef.current = null;
+      }
+    }
+  }, [showTraffic]);
+
+  // Render 50-State Transit Authority & Mountain Pass Incident Pins (Option B)
+  useEffect(() => {
+    if (!mapInstanceRef.current || !transitMarkersGroupRef.current) return;
+
+    transitMarkersGroupRef.current.clearLayers();
+
+    if (!showTraffic) return;
+
+    activeTransitAlerts.forEach((alert) => {
+      const isCritical = alert.severity === 'CRITICAL' || alert.alertType === 'PASS_CLOSURE';
+      const isChain = alert.alertType === 'CHAIN_CONTROL';
+      const isAccident = alert.alertType === 'SEVERE_ACCIDENT';
+
+      const alertColor = isCritical
+        ? '#ef4444' // red
+        : isChain
+        ? '#00f0ff' // icy cyan
+        : isAccident
+        ? '#f97316' // orange
+        : '#fcee0a'; // yellow
+
+      const alertIconSymbol = isCritical
+        ? 'block'
+        : isChain
+        ? 'ac_unit'
+        : isAccident
+        ? 'car_crash'
+        : alert.alertType === 'FLOOD_WASHOUT'
+        ? 'waves'
+        : alert.alertType === 'HIGH_WIND_WARNING'
+        ? 'air'
+        : 'construction';
+
+      const customTransitIcon = L.divIcon({
+        className: 'custom-transit-pin',
+        html: `
+          <div class="group relative flex items-center justify-center cursor-pointer" style="transform: translate(-50%, -50%);">
+            <!-- Pulsing Incident Beacon -->
+            <div style="
+              position: absolute;
+              width: 32px;
+              height: 32px;
+              border-radius: 50%;
+              background: ${alertColor}33;
+              border: 1px dashed ${alertColor};
+              animation: ping 2.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+            "></div>
+
+            <!-- Central Tactical Hexagon/Diamond Badge -->
+            <div style="
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              width: 24px;
+              height: 24px;
+              background: #050505;
+              border: 2px solid ${alertColor};
+              box-shadow: 0 0 12px ${alertColor};
+              border-radius: 4px;
+              color: ${alertColor};
+              font-family: monospace;
+              transform: rotate(45deg);
+              transition: all 0.2s ease;
+            ">
+              <span class="material-symbols-outlined" style="font-size: 14px; transform: rotate(-45deg); font-weight: bold;">
+                ${alertIconSymbol}
+              </span>
+            </div>
+
+            <!-- Route Highway Tag -->
+            <div style="
+              position: absolute;
+              bottom: 22px;
+              left: 50%;
+              transform: translateX(-50%);
+              background: rgba(5, 5, 5, 0.95);
+              border: 1px solid ${alertColor};
+              color: ${alertColor};
+              font-family: monospace;
+              font-size: 9px;
+              font-weight: 900;
+              padding: 2px 6px;
+              border-radius: 2px;
+              white-space: nowrap;
+              pointer-events: none;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.9);
+            ">
+              ${alert.highway}
+            </div>
+          </div>
+        `,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
+      });
+
+      const transitMarker = L.marker([alert.lat, alert.lng], { icon: customTransitIcon, zIndexOffset: 500 });
+
+      const transitPopupContent = `
+        <div style="background:#0a0e0e; color:#e5e2e1; font-family:sans-serif; padding:14px; border:2px solid ${alertColor}; min-width:260px; max-width:320px; border-radius:6px; box-shadow: 0 6px 20px rgba(0,0,0,0.95);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; border-bottom:1px solid #263333; pb:4px;">
+            <span style="color:${alertColor}; font-size:10px; font-weight:bold; font-family:monospace; text-transform:uppercase;">
+              ${alert.agency}
+            </span>
+            <span style="background:${alertColor}; color:#000; font-size:9px; font-weight:900; padding:1px 5px; border-radius:2px; font-family:monospace;">
+              ${alert.alertType.replace('_', ' ')}
+            </span>
+          </div>
+          <div style="color:#ffffff; font-size:14px; font-weight:bold; font-family:'Space Grotesk', sans-serif; margin:4px 0 6px 0; line-height:1.2;">
+            ${alert.highway}
+          </div>
+          <div style="background:#141d1d; border-left:3px solid ${alertColor}; padding:6px 8px; margin-bottom:8px; font-family:monospace; font-size:11px; color:#fcee0a; font-weight:bold;">
+            ⏱️ ${alert.delayText}
+          </div>
+          <p style="color:#cbd5e1; font-size:11px; line-height:1.4; margin-bottom:8px;">
+            ${alert.description}
+          </p>
+          ${alert.recommendedDetour ? `
+            <div style="font-size:10px; font-family:monospace; color:#a3e635; background:#050505; border:1px solid #334155; padding:6px 8px; border-radius:3px;">
+              <span style="color:#fff; font-weight:bold;">RECOMMENDED DETOUR:</span> ${alert.recommendedDetour}
+            </div>
+          ` : ''}
+          <div style="font-family:monospace; font-size:9px; color:#64748b; margin-top:8px; text-align:right;">
+            Source: ${alert.lastUpdated}
+          </div>
+        </div>
+      `;
+
+      transitMarker.bindPopup(transitPopupContent);
+
+      transitMarker.on('click', (e) => {
+        L.DomEvent.stopPropagation(e);
+        setSelectedTransitAlert(alert);
+      });
+
+      transitMarkersGroupRef.current?.addLayer(transitMarker);
+    });
+  }, [showTraffic, activeTransitAlerts]);
 
   // Render markers at exact real-world GPS coordinates with tactical radar pulse pins
   useEffect(() => {
@@ -638,7 +818,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
         </div>
       </div>
 
-      {/* Map Control Bar (Top Right: Mason AI + Live Weather Radar) */}
+      {/* Map Control Bar (Top Right: Mason AI + Live Traffic + Live Weather Radar) */}
       <div className="absolute top-6 right-6 z-30 flex flex-col gap-2.5 items-end">
         {/* Mason AI Advisor Toggle Button */}
         <button
@@ -652,6 +832,22 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
         >
           <span className="material-symbols-outlined text-sm">smart_toy</span>
           <span>MASON A.I. ADVISOR</span>
+        </button>
+
+        {/* Live Real-Time Traffic & 50-State Transit Alerts Toggle Button (Option A & B Hybrid) */}
+        <button
+          onClick={() => setShowTraffic(!showTraffic)}
+          className={`flex items-center gap-2 px-4 py-2 font-mono text-xs font-bold uppercase tracking-wider chamfered-btn transition-all ${
+            showTraffic
+              ? 'bg-[#fcee0a] text-black shadow-[0_0_15px_#fcee0a]'
+              : 'bg-[#121212] text-gray-400 border border-gray-700 hover:text-white'
+          }`}
+          title="Toggle live real-time traffic flow & 50-state transit authority highway alerts"
+        >
+          <span className="material-symbols-outlined text-sm">
+            {showTraffic ? 'traffic' : 'traffic_jam'}
+          </span>
+          <span>{showTraffic ? 'TRAFFIC: ACTIVE' : 'ENABLE TRAFFIC'}</span>
         </button>
 
         {/* Live Weather Radar Overlay Toggle Button */}
@@ -670,6 +866,40 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
           <span>{showRadar ? radarTimeLabel : 'ENABLE RADAR'}</span>
         </button>
       </div>
+
+      {/* Real-Time 50-State Transit Authority Corridor HUD Banner (Top Center) */}
+      {showTraffic && activeTransitAlerts.length > 0 && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 hidden md:flex items-center gap-3 bg-[#0a0e0e]/95 border-2 border-[#fcee0a] px-4 py-2 chamfered-card shadow-[0_0_20px_rgba(252,238,10,0.3)] backdrop-blur-md max-w-2xl">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#fcee0a] animate-ping"></span>
+            <span className="font-mono text-xs font-bold text-[#fcee0a] tracking-wider uppercase flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-sm">traffic</span>
+              511 TRANSIT TELEMETRY:
+            </span>
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+            {activeTransitAlerts.slice(0, 3).map((alert) => (
+              <button
+                key={alert.id}
+                onClick={() => {
+                  if (mapInstanceRef.current) {
+                    mapInstanceRef.current.flyTo([alert.lat, alert.lng], 12, { duration: 1.5 });
+                  }
+                }}
+                className={`font-mono text-[10px] font-bold px-2 py-1 uppercase whitespace-nowrap border transition-all flex items-center gap-1 ${
+                  alert.severity === 'CRITICAL'
+                    ? 'bg-red-950/80 text-red-300 border-red-500 hover:bg-red-900'
+                    : 'bg-amber-950/80 text-amber-300 border-amber-500 hover:bg-amber-900'
+                }`}
+                title="Zoom to highway incident"
+              >
+                <span>{alert.alertType === 'PASS_CLOSURE' ? '⛔' : alert.alertType === 'CHAIN_CONTROL' ? '❄️' : '⚠️'}</span>
+                <span>{alert.highway}: {alert.delayText}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Mason AI Advisor Drawer */}
       <MasonAIAdvisorDrawer
@@ -748,6 +978,29 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
           <p className="font-mono text-xs text-[#ccc7ab] line-clamp-2 leading-relaxed">
             {activeSite.summary}
           </p>
+
+          {/* Approach Highway & Transit Corridor Telemetry */}
+          {(() => {
+            const transit = calculateCampgroundTransitTelemetry(activeSite.lat, activeSite.lng, activeSite.state);
+            const isAlert = transit.status !== 'CLEAR';
+            return (
+              <div className={`p-2 font-mono text-[10px] border flex items-center justify-between gap-2 ${
+                isAlert
+                  ? 'bg-amber-950/40 border-amber-500/60 text-amber-300'
+                  : 'bg-[#050505] border-emerald-900/60 text-emerald-400'
+              }`}>
+                <div className="flex items-center gap-1.5 truncate">
+                  <span className="material-symbols-outlined text-xs">
+                    {isAlert ? 'warning' : 'check_circle'}
+                  </span>
+                  <span className="truncate">{transit.corridorNote}</span>
+                </div>
+                <span className="font-bold whitespace-nowrap bg-black/60 px-1.5 py-0.5 border border-current/30">
+                  {transit.estDriveTime}
+                </span>
+              </div>
+            );
+          })()}
 
           <div className="flex items-center gap-1.5 flex-wrap font-mono text-[10px] text-[#00f0ff]">
             <span className="font-bold">SITE TYPES:</span>

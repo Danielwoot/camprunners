@@ -4,6 +4,7 @@ import { useCamprunner } from '../context/CamprunnerContext';
 import { WeatherTelemetryCard } from '../components/WeatherTelemetryCard';
 import { fetchNWSAlertsForLocation, fetchLiveGpsWeather, NWSActiveAlert, LiveLocationWeather } from '../services/weatherRadarService';
 import { fetchCampgroundAmenities, CampgroundSourceDetails } from '../services/dyrtService';
+import { calculateCampgroundTransitTelemetry, TransitRouteTelemetry } from '../services/trafficService';
 
 export default function ListingDetail() {
   const { id } = useParams<{ id: string }>();
@@ -251,6 +252,82 @@ export default function ListingDetail() {
               </div>
             </div>
           </div>
+
+          {/* Real-Time Highway & 50-State Transit Authority Corridor Telemetry (Option A & B Hybrid) */}
+          {(() => {
+            const transit = calculateCampgroundTransitTelemetry(campsite.lat, campsite.lng, campsite.state);
+            const isAlert = transit.status !== 'CLEAR';
+            const statusColor = transit.status === 'ROAD_CLOSED'
+              ? '#ef4444'
+              : transit.status === 'HEAVY_DELAY'
+              ? '#f97316'
+              : transit.status === 'MODERATE_DELAY'
+              ? '#fcee0a'
+              : '#10b981';
+
+            return (
+              <div className={`space-y-4 bg-[#0c1212] border-2 p-6 chamfered-card shadow-2xl ${
+                isAlert ? 'border-[#fcee0a]/60 shadow-[0_0_20px_rgba(252,238,10,0.15)]' : 'border-[#10b981]/40'
+              }`}>
+                <div className="flex justify-between items-center border-b border-gray-800 pb-3">
+                  <h3 className="text-lg font-['Orbitron'] font-bold text-white uppercase tracking-wide flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[#fcee0a]">traffic</span>
+                    <span>HIGHWAY & 511 TRANSIT CORRIDOR TELEMETRY</span>
+                  </h3>
+                  <span className={`font-mono text-[10px] font-bold px-2 py-0.5 uppercase border ${
+                    isAlert ? 'bg-amber-950/80 text-amber-300 border-amber-500' : 'bg-emerald-950/80 text-emerald-300 border-emerald-500'
+                  }`}>
+                    {transit.estDriveTime}
+                  </span>
+                </div>
+
+                {/* Corridor Status Bar */}
+                <div className={`p-4 border font-mono text-xs flex flex-col md:flex-row md:items-center justify-between gap-3 ${
+                  isAlert ? 'bg-amber-950/30 border-amber-500/40 text-amber-200' : 'bg-[#050505] border-gray-800 text-gray-300'
+                }`}>
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-3 h-3 rounded-full shrink-0" style={{ background: statusColor, boxShadow: `0 0 10px ${statusColor}` }}></span>
+                    <span className="font-bold">{transit.corridorNote}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-gray-400">
+                    <span className="material-symbols-outlined text-sm text-[#00f0ff]">speed</span>
+                    <span>Live 50-State DOT Corridor Telemetry</span>
+                  </div>
+                </div>
+
+                {/* Active Transit Authority Incident Bulletins if any */}
+                {transit.activeAlerts.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    <h4 className="font-mono text-xs font-bold text-[#fcee0a] uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-sm">notification_important</span>
+                      <span>ACTIVE STATE TRANSIT AUTHORITY BULLETINS:</span>
+                    </h4>
+
+                    <div className="space-y-2.5">
+                      {transit.activeAlerts.map((alert) => (
+                        <div key={alert.id} className="bg-[#050505] border border-gray-800 p-4 chamfered-card space-y-2 font-mono text-xs">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[#00f0ff] font-bold uppercase text-[11px]">{alert.agency}</span>
+                            <span className="bg-red-950 text-red-300 border border-red-500 px-2 py-0.5 text-[9px] font-bold uppercase">
+                              {alert.alertType.replace('_', ' ')}
+                            </span>
+                          </div>
+                          <div className="text-white font-bold text-sm font-['Space_Grotesk']">{alert.headline}</div>
+                          <p className="text-gray-300 font-sans text-xs leading-relaxed">{alert.description}</p>
+                          {alert.recommendedDetour && (
+                            <div className="bg-[#121212] border-l-2 border-[#a3e635] p-2 text-[11px] text-[#a3e635]">
+                              <span className="font-bold text-white">RECOMMENDED DETOUR: </span>
+                              {alert.recommendedDetour}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Authentic Campsite Amenities & Services Panel */}
           <div className="bg-[#0c1212] border-2 border-[#00f0ff]/40 p-6 chamfered-card space-y-5 shadow-2xl">
