@@ -13,6 +13,7 @@ import {
   calculateCampgroundTransitTelemetry,
   StateTransitAlert
 } from '../services/trafficService';
+import { fetchFuelStationsInBounds, FuelStation } from '../services/fuelService';
 import { MasonAIAdvisorDrawer } from './MasonAIAdvisorDrawer';
 
 interface GoogleMapTrackerProps {
@@ -27,6 +28,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
   const radarLayerRef = useRef<L.TileLayer | null>(null);
   const trafficLayerRef = useRef<L.TileLayer | null>(null);
   const transitMarkersGroupRef = useRef<L.LayerGroup | null>(null);
+  const fuelMarkersGroupRef = useRef<L.LayerGroup | null>(null);
   const sidebarContainerRef = useRef<HTMLDivElement>(null);
 
   const { registerCampsites, setSelectedCampsite } = useCamprunner();
@@ -36,6 +38,9 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
   const [showRadar, setShowRadar] = useState<boolean>(true);
   const [radarTimeLabel, setRadarTimeLabel] = useState<string>('LIVE RADAR');
   const [showTraffic, setShowTraffic] = useState<boolean>(true);
+  const [showFuelStations, setShowFuelStations] = useState<boolean>(true);
+  const [visibleFuelStations, setVisibleFuelStations] = useState<FuelStation[]>([]);
+  const [selectedFuelStation, setSelectedFuelStation] = useState<FuelStation | null>(null);
   const [activeTransitAlerts, setActiveTransitAlerts] = useState<StateTransitAlert[]>([]);
   const [selectedTransitAlert, setSelectedTransitAlert] = useState<StateTransitAlert | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -118,6 +123,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
     mapInstanceRef.current = map;
     markersGroupRef.current = L.layerGroup().addTo(map);
     transitMarkersGroupRef.current = L.layerGroup().addTo(map);
+    fuelMarkersGroupRef.current = L.layerGroup().addTo(map);
 
     // Initial fetch when map loads
     fetchCampsitesForCurrentBounds(map);
@@ -151,7 +157,7 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
     };
   }, []);
 
-  // Fetch unified campgrounds, Hipcamp retreats, Campspot resorts, and 50-State transit authority alerts in bounds
+  // Fetch unified campgrounds, Hipcamp retreats, Campspot resorts, fuel stations, and 50-State transit authority alerts in bounds
   const fetchCampsitesForCurrentBounds = async (map: L.Map) => {
     try {
       setIsLoading(true);
@@ -163,15 +169,17 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
         maxLng: bounds.getEast()
       };
 
-      const [sites, transitAlerts] = await Promise.all([
+      const [sites, transitAlerts, fuelStops] = await Promise.all([
         fetchUnifiedCampsitesInBounds(mapBounds),
-        Promise.resolve(fetchTransitAlertsInBounds(mapBounds))
+        Promise.resolve(fetchTransitAlertsInBounds(mapBounds)),
+        Promise.resolve(fetchFuelStationsInBounds(mapBounds))
       ]);
 
       // Strictly keep only sites whose lat/lng is actually inside the active map bounds
       const inViewSites = sites.filter((s) => bounds.contains([s.lat, s.lng]));
       setAllVisibleSites(inViewSites);
       setActiveTransitAlerts(transitAlerts);
+      setVisibleFuelStations(fuelStops);
       registerCampsites(inViewSites); // Dynamically accumulates discovered sites into global directory!
 
     } catch (err) {
@@ -409,6 +417,93 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
       transitMarkersGroupRef.current?.addLayer(transitMarker);
     });
   }, [showTraffic, activeTransitAlerts]);
+
+  // Render Interactive Fuel & Gas Stations Layer
+  useEffect(() => {
+    if (!mapInstanceRef.current || !fuelMarkersGroupRef.current) return;
+
+    fuelMarkersGroupRef.current.clearLayers();
+
+    if (!showFuelStations) return;
+
+    visibleFuelStations.forEach((station) => {
+      const customFuelIcon = L.divIcon({
+        className: 'custom-fuel-pin',
+        html: `
+          <div class="group relative flex items-center justify-center cursor-pointer" style="transform: translate(-50%, -50%);">
+            <!-- Pulsing Amber Fuel Ring -->
+            <div style="
+              position: absolute;
+              width: 28px;
+              height: 28px;
+              border-radius: 50%;
+              background: rgba(245, 158, 11, 0.2);
+              border: 1px dashed #f59e0b;
+              animation: ping 3s cubic-bezier(0, 0, 0.2, 1) infinite;
+            "></div>
+
+            <!-- Central Tactical Circular Fuel Badge -->
+            <div style="
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              width: 24px;
+              height: 24px;
+              background: #0f172a;
+              border: 2px solid #f59e0b;
+              box-shadow: 0 0 12px rgba(245, 158, 11, 0.6);
+              border-radius: 50%;
+              color: #f59e0b;
+              font-family: monospace;
+              transition: all 0.2s ease;
+            ">
+              <span class="material-symbols-outlined" style="font-size: 14px; font-weight: bold;">
+                local_gas_station
+              </span>
+            </div>
+
+            <!-- Brand Tag -->
+            <div style="
+              position: absolute;
+              bottom: 22px;
+              left: 50%;
+              transform: translateX(-50%);
+              background: rgba(5, 5, 5, 0.95);
+              border: 1px solid #f59e0b;
+              color: #f59e0b;
+              font-family: monospace;
+              font-size: 9px;
+              font-weight: 900;
+              padding: 2px 6px;
+              border-radius: 2px;
+              white-space: nowrap;
+              pointer-events: none;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.9);
+            ">
+              ⛽ ${station.brand}
+            </div>
+          </div>
+        `,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      });
+
+      const fuelMarker = L.marker([station.lat, station.lng], {
+        icon: customFuelIcon,
+        zIndexOffset: 850
+      });
+
+      fuelMarker.on('click', (e) => {
+        L.DomEvent.stopPropagation(e);
+        setSelectedFuelStation(station);
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.setView([station.lat, station.lng], 14, { animate: true });
+        }
+      });
+
+      fuelMarkersGroupRef.current?.addLayer(fuelMarker);
+    });
+  }, [showFuelStations, visibleFuelStations]);
 
   // Render markers at exact real-world GPS coordinates with tactical radar pulse pins
   useEffect(() => {
@@ -853,6 +948,20 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
           <span>{showTraffic ? 'TRAFFIC: ACTIVE' : 'ENABLE TRAFFIC'}</span>
         </button>
 
+        {/* Interactive Highway Fuel & Gas Station Outposts Toggle */}
+        <button
+          onClick={() => setShowFuelStations(!showFuelStations)}
+          className={`flex items-center gap-2 px-4 py-2 font-mono text-xs font-bold uppercase tracking-wider chamfered-btn transition-all ${
+            showFuelStations
+              ? 'bg-[#f59e0b] text-black shadow-[0_0_15px_#f59e0b]'
+              : 'bg-[#121212] text-gray-400 border border-gray-700 hover:text-white'
+          }`}
+          title="Toggle interactive highway gas stations, diesel stops, propane refills & EV plazas"
+        >
+          <span className="material-symbols-outlined text-sm">local_gas_station</span>
+          <span>{showFuelStations ? 'FUEL: ACTIVE' : 'GAS STATIONS'}</span>
+        </button>
+
         {/* Live Weather Radar Overlay Toggle Button */}
         <button
           onClick={() => setShowRadar(!showRadar)}
@@ -989,6 +1098,119 @@ export const GoogleMapTracker: React.FC<GoogleMapTrackerProps> = ({ heightClass 
               <span>VIEW DETAILS</span>
               <span className="material-symbols-outlined text-xs">arrow_forward</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Interactive Fuel Station & Travel Plaza Intelligence Modal */}
+      {selectedFuelStation && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+          onClick={() => setSelectedFuelStation(null)}
+        >
+          <div 
+            className="bg-[#0c1212] border-2 border-[#f59e0b] p-6 md:p-8 max-w-lg w-full chamfered-card shadow-[0_0_35px_rgba(245,158,11,0.35)] relative space-y-5 font-mono text-xs"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex justify-between items-start border-b border-gray-800 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-[#f59e0b] uppercase tracking-wider flex items-center gap-1">
+                    <span className="material-symbols-outlined text-sm">local_gas_station</span>
+                    HIGHWAY FUEL & REFUELING OUTPOST
+                  </span>
+                  <span className="bg-[#f59e0b] text-black text-[9px] font-black px-1.5 py-0.2 uppercase">
+                    {selectedFuelStation.brand}
+                  </span>
+                </div>
+                <h3 className="font-['Space_Grotesk'] text-lg font-bold text-white mt-1 leading-tight">
+                  {selectedFuelStation.name}
+                </h3>
+                <div className="text-[11px] text-gray-400 mt-0.5">
+                  📍 {selectedFuelStation.highwayRef}
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedFuelStation(null)}
+                className="text-gray-400 hover:text-white text-base font-bold bg-[#050505] w-7 h-7 border border-gray-700 flex items-center justify-center"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Fuel Capabilities & Pricing Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+              <div className={`p-2.5 border ${selectedFuelStation.hasDiesel ? 'bg-emerald-950/30 border-emerald-500/60 text-emerald-400' : 'bg-gray-900/40 border-gray-800 text-gray-600'}`}>
+                <span className="text-[10px] block font-bold">🚛 DIESEL</span>
+                <span className="text-xs font-black">{selectedFuelStation.hasDiesel ? 'AVAILABLE' : 'NO'}</span>
+              </div>
+              <div className={`p-2.5 border ${selectedFuelStation.hasPropane ? 'bg-amber-950/30 border-amber-500/60 text-amber-400' : 'bg-gray-900/40 border-gray-800 text-gray-600'}`}>
+                <span className="text-[10px] block font-bold">🛢️ PROPANE</span>
+                <span className="text-xs font-black">{selectedFuelStation.hasPropane ? 'REFILL' : 'NO'}</span>
+              </div>
+              <div className={`p-2.5 border ${selectedFuelStation.hasEVCharging ? 'bg-cyan-950/30 border-cyan-500/60 text-cyan-400' : 'bg-gray-900/40 border-gray-800 text-gray-600'}`}>
+                <span className="text-[10px] block font-bold">⚡ EV CHARGE</span>
+                <span className="text-xs font-black">{selectedFuelStation.hasEVCharging ? 'FAST DC' : 'NO'}</span>
+              </div>
+              <div className={`p-2.5 border ${selectedFuelStation.hasRVDump ? 'bg-blue-950/30 border-blue-500/60 text-blue-400' : 'bg-gray-900/40 border-gray-800 text-gray-600'}`}>
+                <span className="text-[10px] block font-bold">💧 RV DUMP</span>
+                <span className="text-xs font-black">{selectedFuelStation.hasRVDump ? 'ON-SITE' : 'NO'}</span>
+              </div>
+            </div>
+
+            {/* Address & Estimated Rate */}
+            <div className="bg-[#050505] p-3.5 border border-gray-800 space-y-1.5">
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="text-gray-400">PHYSICAL ADDRESS:</span>
+                <span className="text-gray-200 font-sans">{selectedFuelStation.address}</span>
+              </div>
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="text-gray-400">HOURS OF OPERATION:</span>
+                <span className="text-[#a3e635] font-bold">{selectedFuelStation.isOpen24Hours ? '🟢 OPEN 24/7' : 'Standard Highway Hours'}</span>
+              </div>
+              {selectedFuelStation.priceEstimate && (
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-gray-400">EST. REGULAR RATE:</span>
+                  <span className="text-[#fcee0a] font-bold">{selectedFuelStation.priceEstimate}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Verified Amenities */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] text-gray-400 uppercase font-bold block">SERVICES & AMENITIES:</span>
+              <div className="flex flex-wrap gap-1.5">
+                {selectedFuelStation.amenities.map((am, i) => (
+                  <span key={i} className="bg-[#141d1d] border border-[#f59e0b]/40 text-[#f59e0b] px-2 py-0.5 text-[10px]">
+                    ✓ {am}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="pt-2 flex flex-col sm:flex-row gap-3">
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&destination=${selectedFuelStation.lat},${selectedFuelStation.lng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 bg-[#f59e0b] hover:bg-[#d97706] text-black font-['Orbitron'] font-bold py-3.5 px-4 uppercase tracking-wider text-center flex items-center justify-center gap-2 chamfered-btn transition-colors"
+              >
+                <span>NAVIGATE IN GOOGLE MAPS</span>
+                <span className="material-symbols-outlined text-sm">directions_car</span>
+              </a>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`${selectedFuelStation.lat.toFixed(5)}, ${selectedFuelStation.lng.toFixed(5)}`);
+                  alert(`Copied GPS Coordinates: ${selectedFuelStation.lat.toFixed(5)}, ${selectedFuelStation.lng.toFixed(5)}`);
+                }}
+                className="bg-[#050505] hover:bg-gray-900 border border-gray-700 text-gray-300 px-4 py-3.5 font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 chamfered-btn transition-colors"
+              >
+                <span>COPY GPS</span>
+                <span className="material-symbols-outlined text-sm">content_copy</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
